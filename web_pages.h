@@ -1,5 +1,5 @@
 // ============================================================================
-//  MQTT Bridge — HTML сторінки (PROGMEM)
+//  Samogon — HTML сторінки (PROGMEM)
 // ============================================================================
 #pragma once
 #include <Arduino.h>
@@ -9,7 +9,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 const char MAIN_PAGE[] PROGMEM = R"=====(<!doctype html><html><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>MQTT Bridge</title>
+<title>Samogon</title>
 <style>
 *{box-sizing:border-box}
 body{font-family:Arial,sans-serif;background:#121212;color:#eee;margin:0;padding:10px}
@@ -58,7 +58,7 @@ window.onload=uD;
 </script>
 </head><body>
 <div class="c">
-<h1>🔗 MQTT Bridge</h1>
+<h1>🔗 Samogon</h1>
 <div class="sub">Serial ↔ MQTT Gateway</div>
 
 <div class="d">
@@ -88,6 +88,7 @@ window.onload=uD;
 <div style="text-align:center;margin:15px 0">
 <a href="/settings" class="b">⚙ Налаштування</a>
 <a href="/send" class="b">📤 Відправити</a>
+<a href="/update" class="b">🔄 Оновлення</a>
 </div>
 </div>
 </body></html>)=====";
@@ -317,6 +318,11 @@ document.querySelector('.tablinks').className+=' active';};
 <!-- ─── Tab System ─── -->
 <div id="System" class="tabcontent">
 <div style="margin:10px 0">
+<a href="/update" class="b">🔄 Оновлення прошивки</a>
+<div class="hint">Завантаження нової прошивки через WiFi або MQTT</div>
+</div>
+<div class="sep"></div>
+<div style="margin:10px 0">
 <button class="b red" onclick="restartDevice()">🔄 Перезавантаження</button>
 </div>
 <div class="sep"></div>
@@ -329,6 +335,89 @@ document.querySelector('.tablinks').className+=' active';};
 </div>
 <div style="text-align:center;margin:15px 0">
 <a href="/" class="b">← Назад</a>
+</div>
+</div>
+</body></html>)=====";
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  Сторінка OTA оновлення прошивки через веб
+// ═══════════════════════════════════════════════════════════════════════════
+const char OTA_PAGE[] PROGMEM = R"=====(<!doctype html><html><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Оновлення прошивки</title>
+<style>
+*{box-sizing:border-box}
+body{font-family:Arial,sans-serif;background:#121212;color:#eee;margin:0;padding:10px}
+.c{max-width:700px;margin:0 auto}
+h1{text-align:center;color:#4CAF50}
+.d{background:#1e1e1e;border-radius:10px;padding:15px;margin:10px 0}
+.hdr{color:#4CAF50;font-size:1.1em;margin:10px 0 8px;font-weight:bold}
+.b{display:inline-block;background:#4CAF50;border:0;padding:10px 20px;border-radius:5px;cursor:pointer;color:#fff;text-decoration:none;font-size:1em;margin:5px}
+.b:hover{background:#45a049}
+.b:disabled{background:#555;cursor:not-allowed}
+.hint{color:#666;font-size:.8em;margin:2px 0 8px}
+.msg{padding:10px;border-radius:5px;margin:10px 0;display:none}
+.msg.ok{background:#1a472a;color:#2ecc71;display:block}
+.msg.err{background:#4a1a1a;color:#e74c3c;display:block}
+.pbar{width:100%;height:24px;background:#333;border-radius:12px;overflow:hidden;margin:10px 0;display:none}
+.pfill{height:100%;background:linear-gradient(90deg,#4CAF50,#45a049);border-radius:12px;transition:width .3s;width:0%;text-align:center;line-height:24px;font-size:.85em;color:#fff;font-weight:bold}
+input[type=file]{width:100%;padding:10px;background:#333;color:#eee;border:1px solid #444;border-radius:5px;font-size:1em;margin:5px 0;cursor:pointer}
+.finfo{color:#888;font-size:.85em;margin:5px 0}
+</style>
+<script>
+function uploadFW(){
+var fi=document.getElementById('fw');
+if(!fi.files.length){showMsg('omsg','Оберіть файл прошивки','err');return;}
+var file=fi.files[0];
+if(!file.name.endsWith('.bin')){showMsg('omsg','Файл має бути .bin','err');return;}
+var fd=new FormData();
+fd.append('firmware',file);
+var xhr=new XMLHttpRequest();
+var pb=document.getElementById('pbar');
+var pf=document.getElementById('pfill');
+pb.style.display='block';
+document.getElementById('ubtn').disabled=true;
+xhr.upload.addEventListener('progress',function(e){
+if(e.lengthComputable){var p=Math.round((e.loaded/e.total)*100);pf.style.width=p+'%';pf.innerText=p+'%';}
+});
+xhr.onload=function(){
+try{var r=JSON.parse(xhr.responseText);
+if(r.status==='ok'){showMsg('omsg',r.msg,'ok');pf.style.width='100%';pf.innerText='100%';}
+else{showMsg('omsg',r.msg||'Помилка','err');document.getElementById('ubtn').disabled=false;}
+}catch(e){showMsg('omsg','Помилка відповіді','err');document.getElementById('ubtn').disabled=false;}
+};
+xhr.onerror=function(){showMsg('omsg','Помилка з\'єднання','err');document.getElementById('ubtn').disabled=false;};
+xhr.open('POST','/api/ota_upload');
+xhr.send(fd);
+}
+function showMsg(id,text,cls){var m=document.getElementById(id);m.innerText=text;m.className='msg '+cls;}
+function showFileInfo(){
+var fi=document.getElementById('fw');var info=document.getElementById('finfo');
+if(fi.files.length){var f=fi.files[0];info.innerText=f.name+' ('+Math.round(f.size/1024)+' KB)';}
+else{info.innerText='';}
+}
+</script>
+</head><body>
+<div class="c">
+<h1>🔄 Оновлення прошивки</h1>
+<div class="d">
+<div class="hdr">📦 Завантаження через WiFi</div>
+<div class="hint">Оберіть .bin файл скомпільованої прошивки</div>
+<input type="file" id="fw" accept=".bin" onchange="showFileInfo()">
+<div class="finfo" id="finfo"></div>
+<div class="pbar" id="pbar"><div class="pfill" id="pfill">0%</div></div>
+<div id="omsg" class="msg"></div>
+<button class="b" id="ubtn" onclick="uploadFW()">⬆ Завантажити прошивку</button>
+</div>
+<div class="d">
+<div class="hdr">📡 Оновлення через MQTT</div>
+<div class="hint">Прошивку також можна відправити через MQTT брокер чанками.</div>
+<div class="hint">Топіки: {sub_topic}/ota/begin, /ota/data, /ota/end</div>
+<div class="hint">Статус: {pub_topic}/ota/status, /ota/progress</div>
+</div>
+<div style="text-align:center;margin:15px 0">
+<a href="/" class="b">← Назад</a>
+<a href="/settings" class="b">⚙ Налаштування</a>
 </div>
 </div>
 </body></html>)=====";

@@ -1,13 +1,11 @@
 // ============================================================================
-//  MQTT Bridge — Головний файл
+//  Samogon — Головний файл
 //  ESP8266 Serial ↔ MQTT Bridge з веб-інтерфейсом налаштувань
 // ============================================================================
 #include <Arduino.h>
 #include <ESP8266WiFi.h>
 #include <EEPROM.h>
-#include <ArduinoOTA.h>
 #include <ESPAsyncWebServer.h>
-#include <ESP8266mDNS.h>
 #include <PubSubClient.h>
 #include "config.h"
 
@@ -126,7 +124,8 @@ void saveSettings() {
 void initWiFi();
 void loopWIFI();
 void setupWebServer();
-void initOTA();
+void initMqttOTA();
+void mqttOtaLoop();
 void mqttInit();
 void mqttLoop();
 void serialLoop();
@@ -138,26 +137,24 @@ void serialSendCommand(String cmd);
 void setup() {
   Serial.begin(SERIAL_BAUD);
   delay(100);
-  Serial.println("\n\n=== MQTT Bridge Starting ===");
+  Serial.println("\n\n=== Samogon Starting ===");
 
   loadSettings();       // Завантаження налаштувань з EEPROM
   initWiFi();           // Ініціалізація WiFi (STA + AP fallback)
   setupWebServer();     // Запуск веб-сервера налаштувань
-  initOTA();            // Запуск OTA
   mqttInit();           // Ініціалізація MQTT клієнта
+  initMqttOTA();        // Ініціалізація OTA через MQTT
 
-  Serial.println("=== MQTT Bridge Ready ===\n");
+  Serial.println("=== Samogon Ready ===\n");
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  LOOP
 // ═══════════════════════════════════════════════════════════════════════════
 void loop() {
-  MDNS.update();
-  ArduinoOTA.handle();        // Обробка OTA
-
   serialLoop();               // Прийом та парсинг даних з Serial
   mqttLoop();                 // Обробка MQTT (реконнект + відправка)
+  mqttOtaLoop();              // Обробка OTA через MQTT
 
   yield();
 

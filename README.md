@@ -1,6 +1,12 @@
-# MQTT Bridge — ESP8266 Serial ↔ MQTT Gateway
+# Samogon — ESP8266 Serial ↔ MQTT Gateway
 
 Мост Serial ↔ MQTT на базі ESP8266 з веб-інтерфейсом налаштувань.
+
+## 📚 Документація
+
+- **[ARDUINO_IDE_SETUP.md](ARDUINO_IDE_SETUP.md)** — Детальна інструкція з налаштування Arduino IDE
+- **[EXAMPLES.md](EXAMPLES.md)** — Приклади використання та інтеграції з Home Assistant, Node-RED
+- **[README.md](README.md)** — Цей файл (огляд проекту)
 
 ## Можливості
 
@@ -8,7 +14,7 @@
 - **Веб-інтерфейс**: головна сторінка зі статусом, сторінка налаштувань WiFi/MQTT, сторінка ручної відправки
 - **Serial → MQTT**: прийом даних з UART, парсинг `key=value` пар, публікація кожного значення в окремий MQTT топік
 - **MQTT → Serial**: підписка на командний топік, пересилка отриманих повідомлень в Serial
-- **OTA**: оновлення прошивки по мережі (ArduinoOTA)
+- **OTA через MQTT**: оновлення прошивки по мережі через MQTT брокер (бінарні чанки)
 - **EEPROM**: збереження всіх налаштувань
 
 ## Формат Serial
@@ -23,31 +29,93 @@ key1=value1|key2=value2|key3=value3\r\n
 **Відправка (MQTT → Serial):**  
 Повідомлення з топіка `{sub_topic}/power` з payload `500` → відправляється `power=500\r\n` в Serial.
 
+## OTA оновлення через MQTT
+
+Прошивка оновлюється через MQTT брокер бінарними чанками:
+
+| Крок | Топік | Payload |
+|---|---|---|
+| 1. Початок | `{sub_topic}/ota/begin` | розмір прошивки в байтах (текстом) |
+| 2. Дані | `{sub_topic}/ota/data` | бінарний чанк (до 4096 байт) |
+| 3. Завершення | `{sub_topic}/ota/end` | будь-який або порожній |
+| Скасування | `{sub_topic}/ota/abort` | будь-який або порожній |
+
+**Статус оновлення:**
+- `{pub_topic}/ota/status` — стан: `started`, `success, rebooting...`, `error: ...`, `aborted`
+- `{pub_topic}/ota/progress` — прогрес у відсотках (0–100)
+
+**Приклад (Python):**
+```python
+import paho.mqtt.client as mqtt
+import time
+
+broker = "192.168.1.100"
+sub_topic = "bridge/cmd"
+firmware_path = "firmware.bin"
+chunk_size = 4096
+
+client = mqtt.Client()
+client.connect(broker)
+
+with open(firmware_path, "rb") as f:
+    data = f.read()
+
+# 1. Відправити розмір
+client.publish(f"{sub_topic}/ota/begin", str(len(data)))
+time.sleep(1)
+
+# 2. Відправити чанки
+for i in range(0, len(data), chunk_size):
+    chunk = data[i:i+chunk_size]
+    client.publish(f"{sub_topic}/ota/data", chunk)
+    time.sleep(0.1)
+
+# 3. Завершити
+time.sleep(1)
+client.publish(f"{sub_topic}/ota/end", "done")
+```
+
 ## Встановлення
 
 ### 1. Встановити бібліотеки
 
+#### Через Arduino Library Manager:
+
 В Arduino IDE: **Sketch → Include Library → Manage Libraries...**
 
-| Бібліотека | Автор |
-|---|---|
-| **PubSubClient** | Nick O'Leary |
-| **ESP Async WebServer** | — (або з libraries/ оригінального проекту) |
-| **ESPAsyncTCP** | — (або з libraries/ оригінального проекту) |
+Встановіть:
+- **PubSubClient** від Nick O'Leary
 
-> Бібліотеки **ESP Async WebServer** та **ESPAsyncTCP** можна скопіювати з папки `libraries/` оригінального проекту в папку `Arduino/libraries/` вашого комп'ютера.
+#### Ручне встановлення (для ESP Async Web Server):
+
+Бібліотеки **ESPAsyncWebServer** та **ESPAsyncTCP** потрібно встановити вручну з GitHub:
+
+1. Завантажте та розпакуйте:
+   - [ESPAsyncWebServer](https://github.com/me-no-dev/ESPAsyncWebServer/archive/master.zip)
+   - [ESPAsyncTCP](https://github.com/me-no-dev/ESPAsyncTCP/archive/master.zip)
+
+2. Скопіюйте розпаковані папки в:
+   - Windows: `C:\Users\<ім'я користувача>\Documents\Arduino\libraries\`
+   - Linux: `~/Arduino/libraries/`
+   - macOS: `~/Documents/Arduino/libraries/`
+
+3. Перейменуйте папки:
+   - `ESPAsyncWebServer-master` → `ESPAsyncWebServer`
+   - `ESPAsyncTCP-master` → `ESPAsyncTCP`
+
+4. Перезапустіть Arduino IDE
 
 ### 2. Встановити Board Package
 
 В Arduino IDE: **File → Preferences → Additional Board Manager URLs:**
 ```
-http://arduino.esp8266.com/stable/package_esp8266com_index.json
+https://arduino.esp8266.com/stable/package_esp8266com_index.json
 ```
-Потім: **Tools → Board → Boards Manager** → встановити **esp8266**
+Потім: **Tools → Board → Boards Manager** → встановити **esp8266** (версія 3.0.0 або новіша)
 
 ### 3. Компіляція
 
-1. Відкрити `mqtt_bridge.ino` в Arduino IDE
+1. Відкрити `samogon.ino` в Arduino IDE
 2. **Tools → Board:** Generic ESP8266 Module (або NodeMCU, Wemos D1 mini тощо)
 3. **Tools → Flash Size:** 4MB (FS:2MB, OTA:~1019KB) або відповідно до вашої плати
 4. Upload
@@ -69,20 +137,19 @@ http://arduino.esp8266.com/stable/package_esp8266com_index.json
 | AP IP | `192.168.4.1` |
 | Serial | 9600 бод |
 | MQTT порт | 1883 |
-| OTA пароль | `admin` |
 
 ## Структура файлів
 
 ```
-mqtt_bridge/
-├── mqtt_bridge.ino    — Головний файл, setup/loop, EEPROM
+samogon/
+├── samogon.ino        — Головний файл, setup/loop, EEPROM
 ├── config.h           — Конфігурація, адреси EEPROM, дефайни
 ├── wifi_utils.ino     — WiFi STA+AP, підключення, реконнект
 ├── web_server.ino     — Веб-сервер, маршрути API
 ├── web_pages.h        — HTML сторінки (PROGMEM)
 ├── mqtt_client.ino    — MQTT клієнт, публікація, підписка
 ├── serial_comm.ino    — Serial прийом, парсинг, відправка
-├── OTA.ino            — OTA оновлення
+├── OTA.ino            — OTA оновлення через MQTT
 └── install_libraries.bat — Скрипт встановлення бібліотек
 ```
 

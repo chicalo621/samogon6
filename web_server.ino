@@ -1,8 +1,9 @@
 // ============================================================================
-//  MQTT Bridge — Веб-сервер
+//  Samogon — Веб-сервер
 //  Маршрути: головна, налаштування, API статусу, збереження WiFi/MQTT
 // ============================================================================
 #include "web_pages.h"
+#include <Updater.h>
 
 void setupWebServer() {
 #ifdef ENABLE_WEB_SERVER
@@ -121,12 +122,7 @@ void setupWebServer() {
         savedSSID = newSSID;
         savedPass = newPass;
         saveSettings();
-        // Підключаємося до нової мережі
         ConnectWIFI(savedSSID, savedPass);
-        if (WiFi.status() == WL_CONNECTED) {
-          hotspotMode = false;
-          localIP = WiFi.localIP().toString();
-        }
       }
     }
     request->send(200, "text/plain", "OK");
@@ -201,6 +197,48 @@ void setupWebServer() {
     delay(500);
     ESP.restart();
   });
+
+  // ─── Сторінка OTA оновлення ─────────────────────────────────────────────────
+  server.on("/update", HTTP_GET, [](AsyncWebServerRequest *request) {
+    request->send_P(200, "text/html", OTA_PAGE);
+  });
+
+  // ─── Web OTA: завантаження прошивки через веб-інтерфейс ────────────────────
+  server.on("/api/ota_upload", HTTP_POST,
+    // Відповідь після завершення завантаження
+    [](AsyncWebServerRequest *request) {
+      bool success = !Update.hasError();
+      request->send(200, "application/json",
+        success ? "{\"status\":\"ok\",\"msg\":\"Оновлення успішне! Перезавантаження...\"}"
+                : "{\"status\":\"error\",\"msg\":\"Помилка оновлення\"}");
+      if (success) {
+        delay(1000);
+        ESP.restart();
+      }
+    },
+    // Обробка чанків файлу під час завантаження
+    [](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
+      if (index == 0) {
+        Serial.println("[OTA-WEB] Старт: " + filename);
+        uint32_t maxSketchSpace = (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
+        if (!Update.begin(maxSketchSpace, U_FLASH)) {
+          Serial.println("[OTA-WEB] Update.begin() помилка");
+        }
+      }
+      if (len) {
+        if (Update.write(data, len) != len) {
+          Serial.println("[OTA-WEB] Помилка запису");
+        }
+      }
+      if (final) {
+        if (Update.end(true)) {
+          Serial.printf("[OTA-WEB] Успіх, %u байт\n", index + len);
+        } else {
+          Serial.printf("[OTA-WEB] Помилка: %d\n", Update.getError());
+        }
+      }
+    }
+  );
 
   // ─── Запуск сервера ───────────────────────────────────────────────────────
   server.begin();

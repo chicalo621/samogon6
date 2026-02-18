@@ -1,5 +1,5 @@
 // ============================================================================
-//  MQTT Bridge — MQTT клієнт
+//  Samogon — MQTT клієнт
 //  Підключення до MQTT брокера, публікація, підписка, обробка повідомлень
 // ============================================================================
 
@@ -28,6 +28,14 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   if (topicStr.startsWith(baseTopic + "/")) {
     subTopic = topicStr.substring(baseTopic.length() + 1);
   }
+
+  // Перевіряємо чи це OTA повідомлення
+#ifdef ENABLE_OTA
+  if (isMqttOtaMessage(subTopic)) {
+    mqttOtaCallback(subTopic, payload, length);
+    return;
+  }
+#endif
 
   // Формуємо команду для Serial
   if (subTopic.length() > 0) {
@@ -69,6 +77,9 @@ bool mqttConnect() {
 
     Serial.println("[MQTT] Підписка на: " + subWithWild);
     Serial.println("[MQTT] Підписка на: " + mqttSubTopic);
+
+    // Підписуємось на OTA топіки
+    mqttOtaSubscribe();
 
     // Публікуємо статус online
     String statusTopic = mqttPubTopic + "/status";
@@ -152,6 +163,8 @@ void mqttReconnectWithNewSettings() {
 
   if (mqttServer.length() > 0) {
     mqttClient.setServer(mqttServer.c_str(), mqttPort);
+    mqttClient.setCallback(mqttCallback);
+    mqttClient.setBufferSize(512);
     mqttConnect();
   }
 #endif

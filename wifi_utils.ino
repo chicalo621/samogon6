@@ -1,30 +1,41 @@
 // ============================================================================
-//  MQTT Bridge — WiFi утиліти
-//  Підключення до WiFi, точка доступу, реконнект
+//  Samogon — WiFi утиліти
+//  Підключення до WiFi, точка доступу (тільки при відсутності STA), реконнект
 // ============================================================================
 #include "config.h"
 
 // ─── Запуск точки доступу (AP) ──────────────────────────────────────────────
-void startHotspot() {
+void startAP() {
 #ifdef ENABLE_WIFI
-  hotspotMode = true;
-  WiFi.mode(WIFI_AP_STA);  // AP + STA — щоб веб-інтерфейс працював завжди
-  WiFi.softAP(AP_SSID, AP_PASS);
-  Serial.println("Точка доступу запущена: " + String(AP_SSID));
-  Serial.println("AP IP: " + WiFi.softAPIP().toString());
+  if (!hotspotMode) {
+    hotspotMode = true;
+    WiFi.softAP(AP_SSID, AP_PASS);
+    Serial.println("[WiFi] AP запущена: " + String(AP_SSID) + " IP: " + WiFi.softAPIP().toString());
+  }
+#endif
+}
+
+// ─── Зупинка точки доступу ──────────────────────────────────────────────────
+void stopAP() {
+#ifdef ENABLE_WIFI
+  if (hotspotMode) {
+    hotspotMode = false;
+    WiFi.softAPdisconnect(true);
+    Serial.println("[WiFi] AP вимкнена.");
+  }
 #endif
 }
 
 // ─── Підключення до WiFi мережі ────────────────────────────────────────────
 void ConnectWIFI(String SSID, String Pass) {
 #ifdef ENABLE_WIFI
-  WiFi.mode(WIFI_AP_STA);  // Залишаємо AP активною для налаштувань
+  WiFi.mode(WIFI_AP_STA);
   WiFi.setSleepMode(WIFI_NONE_SLEEP);
   WiFi.setAutoReconnect(true);
   WiFi.persistent(false);
   WiFi.begin(SSID, Pass);
 
-  Serial.print("Підключення до WiFi: " + SSID);
+  Serial.print("[WiFi] Підключення до: " + SSID);
 
   uint32_t startTime = millis();
   while (WiFi.status() != WL_CONNECTED && millis() - startTime < WIFI_CONNECT_TIMEOUT) {
@@ -32,57 +43,55 @@ void ConnectWIFI(String SSID, String Pass) {
     delay(200);
   }
   Serial.println();
+
+  if (WiFi.status() == WL_CONNECTED) {
+    // STA підключено — вимикаємо AP
+    stopAP();
+    localIP = WiFi.localIP().toString();
+    Serial.println("[WiFi] Підключено. IP: " + localIP);
+    Serial.println("[WiFi] RSSI: " + String(WiFi.RSSI()) + " dBm");
+  } else {
+    // STA не підключено — вмикаємо AP для налаштування
+    Serial.println("[WiFi] Не вдалося підключитися.");
+    startAP();
+  }
 #endif
 }
 
 // ─── Збереження WiFi налаштувань та підключення ─────────────────────────────
 void WiFiSetup(String newSSID, String newPass) {
 #ifdef ENABLE_WIFI
-  hotspotMode = false;
   savedSSID = newSSID;
   savedPass = newPass;
-  saveSettings();  // Зберігаємо все в EEPROM
-
-  if (WiFi.status() != WL_CONNECTED) {
-    ConnectWIFI(savedSSID, savedPass);
-  }
+  saveSettings();
+  ConnectWIFI(savedSSID, savedPass);
 #endif
 }
 
-// ─── Перехід у режим точки доступу ──────────────────────────────────────────
+// ─── Примусовий перехід у режим точки доступу ───────────────────────────────
 void hotspotSetup() {
 #ifdef ENABLE_WIFI
-  Serial.println("Перехід у режим точки доступу...");
-  hotspotMode = true;
-  startHotspot();
+  Serial.println("[WiFi] Примусовий перехід у режим AP...");
+  WiFi.disconnect(false);
+  WiFi.mode(WIFI_AP);
+  startAP();
 #endif
 }
 
 // ─── Ініціалізація WiFi при старті ──────────────────────────────────────────
 void initWiFi() {
 #ifdef ENABLE_WIFI
-  // Завжди запускаємо AP, щоб можна було налаштувати
-  WiFi.mode(WIFI_AP_STA);
   WiFi.setSleepMode(WIFI_NONE_SLEEP);
-  WiFi.softAP(AP_SSID, AP_PASS);
-  Serial.println("AP запущена: " + String(AP_SSID) + " IP: " + WiFi.softAPIP().toString());
 
-  // Якщо є збережений SSID — підключаємося до роутера
   if (savedSSID.length() > 0) {
+    // Є збережений SSID — пробуємо підключитися (AP буде тільки при неуспіху)
+    WiFi.mode(WIFI_STA);
     ConnectWIFI(savedSSID, savedPass);
-
-    if (WiFi.status() == WL_CONNECTED) {
-      hotspotMode = false;
-      localIP = WiFi.localIP().toString();
-      Serial.println("Підключено до WiFi. IP: " + localIP);
-      Serial.println("RSSI: " + String(WiFi.RSSI()) + " dBm");
-    } else {
-      Serial.println("Не вдалося підключитися до WiFi.");
-      hotspotMode = true;
-    }
   } else {
-    hotspotMode = true;
-    Serial.println("WiFi SSID не налаштований. Використовуйте AP для налаштування.");
+    // SSID не налаштований — запускаємо тільки AP
+    WiFi.mode(WIFI_AP);
+    startAP();
+    Serial.println("[WiFi] SSID не налаштований. AP активна для налаштування.");
   }
 #endif
 }
@@ -92,13 +101,22 @@ void loopWIFI() {
 #ifdef ENABLE_WIFI
   if (savedSSID.length() > 0) {
     if (WiFi.status() != WL_CONNECTED) {
+      // З'єднання втрачено — запускаємо AP і пробуємо реконнект
+      if (!hotspotMode) {
+        Serial.println("[WiFi] З'єднання втрачено, вмикаю AP...");
+        WiFi.mode(WIFI_AP_STA);
+        startAP();
+      }
       WiFi.begin(savedSSID, savedPass);
       wifiRSSI = 0;
     } else {
+      // З'єднання є — вимикаємо AP якщо була активна
+      if (hotspotMode) {
+        stopAP();
+      }
       wifiRSSI = WiFi.RSSI();
       localIP = WiFi.localIP().toString();
     }
   }
 #endif
 }
-
