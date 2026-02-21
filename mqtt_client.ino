@@ -12,10 +12,10 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   }
 
   String topicStr = String(topic);
-  Serial.println("[MQTT RX] " + topicStr + " : " + message);
+  Serial1.println("[MQTT RX] " + topicStr + " : " + message);
 
   // Визначаємо суб-топік (після базового subscribe-топіка)
-  // Наприклад: bridge/cmd/power → sub-topic = "power"
+  // Наприклад: bridge/cmd/shim → sub-topic = "shim"
   String subTopic = "";
   String baseTopic = mqttSubTopic;
   // Видаляємо /# з кінця для порівняння
@@ -37,12 +37,13 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   }
 #endif
 
-  // Формуємо команду для Serial
+  // Маршрутизація команди до Arduino
   if (subTopic.length() > 0) {
-    // bridge/cmd/power з payload "500" → "power=500"
+    // bridge/cmd/shim з payload "500" → serialSendCommand("shim=500")
+    // → setArduinoCommand("shim", "500") → формує ^...$...&...*...%#500@...!
     serialSendCommand(subTopic + "=" + message);
   } else {
-    // Якщо прийшло на точний топік — пересилаємо payload як є
+    // Точний топік — raw відправка
     serialSendCommand(message);
   }
 }
@@ -53,7 +54,7 @@ bool mqttConnect() {
   if (mqttServer.length() == 0) return false;
   if (WiFi.status() != WL_CONNECTED && !hotspotMode) return false;
 
-  Serial.print("[MQTT] Підключення до " + mqttServer + ":" + String(mqttPort) + "... ");
+  Serial1.print("[MQTT] Підключення до " + mqttServer + ":" + String(mqttPort) + "... ");
 
   bool connected = false;
   if (mqttUser.length() > 0) {
@@ -63,7 +64,7 @@ bool mqttConnect() {
   }
 
   if (connected) {
-    Serial.println("OK");
+    Serial1.println("OK");
     mqttConnected = true;
 
     // Підписуємося на командний топік з wildcard
@@ -75,8 +76,8 @@ bool mqttConnect() {
     // Також підписуємось на точний топік
     mqttClient.subscribe(mqttSubTopic.c_str());
 
-    Serial.println("[MQTT] Підписка на: " + subWithWild);
-    Serial.println("[MQTT] Підписка на: " + mqttSubTopic);
+    Serial1.println("[MQTT] Підписка на: " + subWithWild);
+    Serial1.println("[MQTT] Підписка на: " + mqttSubTopic);
 
     // Підписуємось на OTA топіки
     mqttOtaSubscribe();
@@ -85,7 +86,7 @@ bool mqttConnect() {
     String statusTopic = mqttPubTopic + "/status";
     mqttClient.publish(statusTopic.c_str(), "online", true);
   } else {
-    Serial.println("ПОМИЛКА, rc=" + String(mqttClient.state()));
+    Serial1.println("ПОМИЛКА, rc=" + String(mqttClient.state()));
     mqttConnected = false;
   }
   return connected;
@@ -101,9 +102,9 @@ void mqttInit() {
     mqttClient.setServer(mqttServer.c_str(), mqttPort);
     mqttClient.setCallback(mqttCallback);
     mqttClient.setBufferSize(512);
-    Serial.println("[MQTT] Ініціалізовано: " + mqttServer + ":" + String(mqttPort));
+    Serial1.println("[MQTT] Ініціалізовано: " + mqttServer + ":" + String(mqttPort));
   } else {
-    Serial.println("[MQTT] Сервер не налаштований.");
+    Serial1.println("[MQTT] Сервер не налаштований.");
   }
 #endif
 }

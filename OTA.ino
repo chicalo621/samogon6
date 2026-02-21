@@ -30,7 +30,7 @@ void otaPublishStatus(const char* status) {
     mqttClient.publish(topic.c_str(), status, false);
   }
 #endif
-  Serial.println(String("[OTA] ") + status);
+  Serial1.println(String("[OTA] ") + status);
 }
 
 void otaPublishProgress(uint8_t percent) {
@@ -63,7 +63,7 @@ void mqttOtaCallback(String subTopic, byte* payload, unsigned int length) {
     uint32_t maxSketchSpace = (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
     if (otaTotalSize > maxSketchSpace) {
       otaPublishStatus("error: firmware too large");
-      Serial.printf("[OTA] Розмір %u > доступно %u\n", otaTotalSize, maxSketchSpace);
+      Serial1.printf("[OTA] Розмір %u > доступно %u\n", otaTotalSize, maxSketchSpace);
       return;
     }
 
@@ -77,11 +77,11 @@ void mqttOtaCallback(String subTopic, byte* payload, unsigned int length) {
 
     if (Update.begin(otaTotalSize, U_FLASH)) {
       otaPublishStatus("started");
-      Serial.printf("[OTA] Старт оновлення, розмір: %u байт\n", otaTotalSize);
+      Serial1.printf("[OTA] Старт оновлення, розмір: %u байт\n", otaTotalSize);
     } else {
       otaInProgress = false;
       otaPublishStatus("error: update begin failed");
-      Serial.println("[OTA] Update.begin() помилка");
+      Serial1.println("[OTA] Update.begin() помилка");
     }
     return;
   }
@@ -101,7 +101,7 @@ void mqttOtaCallback(String subTopic, byte* payload, unsigned int length) {
       Update.end(false);
       mqttClient.setBufferSize(512);
       otaPublishStatus("error: write failed");
-      Serial.printf("[OTA] Помилка запису: записано %u з %u\n", written, length);
+      Serial1.printf("[OTA] Помилка запису: записано %u з %u\n", written, length);
       return;
     }
 
@@ -112,7 +112,7 @@ void mqttOtaCallback(String subTopic, byte* payload, unsigned int length) {
     if (percent >= otaLastProgress + 5 || percent == 100) {
       otaLastProgress = percent;
       otaPublishProgress(percent);
-      Serial.printf("[OTA] Прогрес: %u%% (%u/%u)\n", percent, otaReceived, otaTotalSize);
+      Serial1.printf("[OTA] Прогрес: %u%% (%u/%u)\n", percent, otaReceived, otaTotalSize);
     }
     return;
   }
@@ -129,13 +129,13 @@ void mqttOtaCallback(String subTopic, byte* payload, unsigned int length) {
 
     if (Update.end(true)) {
       otaPublishStatus("success, rebooting...");
-      Serial.println("[OTA] Оновлення завершено успішно! Перезавантаження...");
+      Serial1.println("[OTA] Оновлення завершено успішно! Перезавантаження...");
       delay(1000);
       ESP.restart();
     } else {
       String errMsg = "error: update end failed, err=" + String(Update.getError());
       otaPublishStatus(errMsg.c_str());
-      Serial.printf("[OTA] Помилка завершення: %d\n", Update.getError());
+      Serial1.printf("[OTA] Помилка завершення: %d\n", Update.getError());
     }
     return;
   }
@@ -147,7 +147,7 @@ void mqttOtaCallback(String subTopic, byte* payload, unsigned int length) {
       Update.end(false);
       mqttClient.setBufferSize(512);
       otaPublishStatus("aborted");
-      Serial.println("[OTA] Оновлення скасовано.");
+      Serial1.println("[OTA] Оновлення скасовано.");
     }
     return;
   }
@@ -170,7 +170,7 @@ void mqttOtaSubscribe() {
   mqttClient.subscribe((baseTopic + "/ota/end").c_str(), 1);
   mqttClient.subscribe((baseTopic + "/ota/abort").c_str(), 1);
 
-  Serial.println("[OTA] Підписка на MQTT OTA топіки");
+  Serial1.println("[OTA] Підписка на MQTT OTA топіки");
 #endif
 }
 
@@ -178,7 +178,7 @@ void mqttOtaSubscribe() {
 void initMqttOTA() {
 #ifdef ENABLE_OTA
   otaInProgress = false;
-  Serial.println("[OTA] MQTT OTA ініціалізовано.");
+  Serial1.println("[OTA] MQTT OTA ініціалізовано.");
 #endif
 }
 
@@ -191,7 +191,7 @@ void mqttOtaLoop() {
       Update.end(false);
       mqttClient.setBufferSize(512);
       otaPublishStatus("error: timeout");
-      Serial.println("[OTA] Таймаут оновлення.");
+      Serial1.println("[OTA] Таймаут оновлення.");
       otaLastDataTime = 0;
     }
   }

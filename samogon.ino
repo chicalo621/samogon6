@@ -92,9 +92,9 @@ void loadSettings() {
 
   EEPROM.end();
 
-  Serial.println("Налаштування завантажено.");
-  Serial.println("WiFi SSID: " + savedSSID);
-  Serial.println("MQTT Server: " + mqttServer + ":" + String(mqttPort));
+  Serial1.println("Налаштування завантажено.");
+  Serial1.println("WiFi SSID: " + savedSSID);
+  Serial1.println("MQTT Server: " + mqttServer + ":" + String(mqttPort));
 }
 
 // ─── Збереження всіх налаштувань у EEPROM ───────────────────────────────────
@@ -117,7 +117,7 @@ void saveSettings() {
   EEPROM.commit();
   EEPROM.end();
 
-  Serial.println("Налаштування збережено в EEPROM.");
+  Serial1.println("Налаштування збережено в EEPROM.");
 }
 
 // ─── Прототипи функцій з інших файлів ───────────────────────────────────────
@@ -130,14 +130,17 @@ void mqttInit();
 void mqttLoop();
 void serialLoop();
 void serialSendCommand(String cmd);
+void setArduinoCommand(String key, String value);
+void sendCommandToArduino();
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  SETUP
 // ═══════════════════════════════════════════════════════════════════════════
 void setup() {
-  Serial.begin(SERIAL_BAUD);
+  Serial.begin(SERIAL_BAUD);     // UART до Arduino (115200) — тільки дані!
+  Serial1.begin(115200);          // Debug UART (GPIO2, TX-only)
   delay(100);
-  Serial.println("\n\n=== Samogon Starting ===");
+  Serial1.println("\n\n=== Samogon Starting ===");
 
   loadSettings();       // Завантаження налаштувань з EEPROM
   initWiFi();           // Ініціалізація WiFi (STA + AP fallback)
@@ -145,7 +148,7 @@ void setup() {
   mqttInit();           // Ініціалізація MQTT клієнта
   initMqttOTA();        // Ініціалізація OTA через MQTT
 
-  Serial.println("=== Samogon Ready ===\n");
+  Serial1.println("=== Samogon Ready ===\n");
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

@@ -219,22 +219,22 @@ void setupWebServer() {
     // Обробка чанків файлу під час завантаження
     [](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
       if (index == 0) {
-        Serial.println("[OTA-WEB] Старт: " + filename);
+        Serial1.println("[OTA-WEB] Старт: " + filename);
         uint32_t maxSketchSpace = (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
         if (!Update.begin(maxSketchSpace, U_FLASH)) {
-          Serial.println("[OTA-WEB] Update.begin() помилка");
+          Serial1.println("[OTA-WEB] Update.begin() помилка");
         }
       }
       if (len) {
         if (Update.write(data, len) != len) {
-          Serial.println("[OTA-WEB] Помилка запису");
+          Serial1.println("[OTA-WEB] Помилка запису");
         }
       }
       if (final) {
         if (Update.end(true)) {
-          Serial.printf("[OTA-WEB] Успіх, %u байт\n", index + len);
+          Serial1.printf("[OTA-WEB] Успіх, %u байт\n", index + len);
         } else {
-          Serial.printf("[OTA-WEB] Помилка: %d\n", Update.getError());
+          Serial1.printf("[OTA-WEB] Помилка: %d\n", Update.getError());
         }
       }
     }
@@ -242,7 +242,7 @@ void setupWebServer() {
 
   // ─── Запуск сервера ───────────────────────────────────────────────────────
   server.begin();
-  Serial.println("[WEB] Сервер запущено.");
+  Serial1.println("[WEB] Сервер запущено.");
 
 #endif // ENABLE_WEB_SERVER
 }

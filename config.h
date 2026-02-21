@@ -30,7 +30,7 @@
 #define MQTT_RECONNECT_INTERVAL 5000             // Інтервал перепідключення MQTT (мс)
 
 // ─── Налаштування Serial ────────────────────────────────────────────────────
-#define SERIAL_BAUD            9600              // Швидкість UART
+#define SERIAL_BAUD            115200            // Швидкість UART (збігається з Arduino HomeSamogon_ua1)
 #define SERIAL_BUFFER_SIZE     256               // Розмір буфера прийому
 #define SERIAL_DELIMITER       '|'               // Роздільник ключ=значення пар
 #define SERIAL_KV_SEPARATOR    '='               // Роздільник ключ від значення
