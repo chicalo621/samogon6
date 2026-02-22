@@ -1,7 +1,7 @@
 // ============================================================================
 //  Samogon — Serial комунікація
 //  Прийом пакетів від Arduino HomeSamogon_ua1 (кома-розділений, маркер кінця %)
-//  Формування команд для Arduino у форматі ^$&*%#@!
+//  Відправка команд в Arduino — ПООДИНЦІ, у рідному форматі ^$&*%#@!~
 // ============================================================================
 //
 //  === ПРОТОКОЛ Arduino → ESP (дані, кожні 2 сек) ===
@@ -9,9 +9,18 @@
 //  Маркер кінця:  ,%   (символ % як останнє поле перед фінальною комою)
 //  БЕЗ \r\n !
 //
-//  === ПРОТОКОЛ ESP → Arduino (команди керування) ===
-//  Формат: ^<water>$<autoMode>&<pwm1>*<pwm2>%#<shim>@<alarmLimit>!
-//  Приклад: ^0$1&777.0*777.0%#500@110!
+//  === ПРОТОКОЛ ESP → Arduino (команди керування, по одній) ===
+//
+//  ^1$           — включити воду
+//  ^0$           — виключити воду
+//  #440!         — встановити ШІМ клапана 440
+//  @110.00!      — встановити температуру сигналізації 110
+//  $0&777*777    — вимкнути зумер / вимкнути авто режим
+//  $1&32.5*22.5  — авто режим: дельта 10, початкова 22.5, кінцева 32.5
+//  &90*80        — змінити температуру старт-стоп 80 з дельтою 10
+//  %0~           — дисплей центр: атмосферний тиск
+//  %1~           — дисплей центр: температура аварії
+//  %2~           — дисплей центр: температура потужності
 //
 // ============================================================================
 
@@ -36,15 +45,6 @@ const char* field_names[MAX_SERIAL_KEYS] = {
   "switchString8",       // 13: стан периферії (0/1)
   "endMark"              // 14: "%" — маркер кінця пакету
 };
-
-// ─── Стан команд для відправки в Arduino (ESP → Arduino) ─────────────────────
-static String cmdTempFlag29  = "0";      // ^..$ вода вкл/викл
-static String cmdTempFlag33  = "0";      // $..& автоматичний режим
-static String cmdPwmValue1   = "777.0";  // &..* поріг ШІМ 1
-static String cmdPwmValue2   = "777.0";  // *..% поріг ШІМ 2
-static String cmdTempInt2    = "0";      // #..@ значення ШІМ клапану
-static String cmdAlarmLimit  = "110";    // @..! межа тривоги
-static bool   cmdPending     = false;    // є зміни для відправки
 
 // ─── Парсинг пакету від Arduino (кома-розділений) ────────────────────────────
 void parseSerialPacket(String line) {
@@ -79,17 +79,12 @@ void parseSerialPacket(String line) {
 }
 
 // ─── Основний цикл прийому Serial ───────────────────────────────────────────
-// Arduino НЕ відправляє \r\n — пакет закінчується символом ,%,
-// Тому шукаємо маркер ",%" як ознаку кінця пакету
 void serialLoop() {
   static String inputBuffer = "";
 
   while (Serial.available() > 0) {
     char inChar = (char)Serial.read();
 
-    // \r \n — це debug/echo від Arduino (readByteFromUART шле Serial.println)
-    // Якщо в буфері вже є початок валідного пакету — ігноруємо \r\n
-    // Інакше — скидаємо буфер (це сміття/debug)
     if (inChar == '\r' || inChar == '\n') {
       if (inputBuffer.length() > 0 && !inputBuffer.startsWith("HomeSamogon")) {
         inputBuffer = "";
@@ -100,7 +95,6 @@ void serialLoop() {
     inputBuffer += inChar;
 
     // Маркер кінця пакету: ",%" — Arduino шле ...switchString8,%,
-    // Коли бачимо ",%" — пакет зібраний
     if (inputBuffer.endsWith(",%")) {
       parseSerialPacket(inputBuffer);
       inputBuffer = "";
@@ -112,59 +106,92 @@ void serialLoop() {
       inputBuffer = "";
     }
   }
-
-  // Відправка відкладених команд до Arduino
-  if (cmdPending) {
-    sendCommandToArduino();
-    cmdPending = false;
-  }
 }
 
-// ─── Формування та відправка команди до Arduino ─────────────────────────────
-// Формат: ^<water>$<autoMode>&<pwm1>*<pwm2>%#<shim>@<alarmLimit>!
-//
-// Arduino декодує (HomeSamogon_ua1.ino рядки 717-770):
-//   ^...$ → tempFlag29 (вода, "0"/"1")
-//   $...& → tempFlag33 (авто, "0"/"1")
-//   &...* → pwmValue1 (float)
-//   *...% → pwmValue2 (float)
-//   #...! → tempInt2 (int, ШІМ клапану)  [toFloat зупиняється на @]
-//   @...! → alarmTempLimit (float)
-void sendCommandToArduino() {
-  String cmd = "^" + cmdTempFlag29 +
-               "$" + cmdTempFlag33 +
-               "&" + cmdPwmValue1 +
-               "*" + cmdPwmValue2 +
-               "%" +
-               "#" + cmdTempInt2 +
-               "@" + cmdAlarmLimit + "!";
-  Serial.print(cmd);
-}
-
-// ─── Встановлення параметра команди (з MQTT або веб) ────────────────────────
-// Наприклад: .../cmd/shim → key="shim", value="500"
+// ─── Відправка одиночної команди до Arduino ─────────────────────────────────
+// Команди відправляються ПО ОДНІЙ у рідному форматі.
+// MQTT топік .../cmd/{key} з payload → формує відповідну команду
 void setArduinoCommand(String key, String value) {
   value.trim();
+  String cmd = "";
 
-  if      (key == "tempFlag29" || key == "water")     cmdTempFlag29 = value;
-  else if (key == "tempFlag33" || key == "autoMode")  cmdTempFlag33 = value;
-  else if (key == "pwmValue1")                        cmdPwmValue1  = value;
-  else if (key == "pwmValue2")                        cmdPwmValue2  = value;
-  else if (key == "tempInt2"   || key == "shim")      cmdTempInt2   = value;
-  else if (key == "alarmTempLimit" || key == "alarmLimit") cmdAlarmLimit = value;
+  // ── Вода (клапан) ──
+  // MQTT: .../cmd/water   payload: "1" або "0"
+  // Serial: ^1$ або ^0$
+  if (key == "water") {
+    cmd = "^" + value + "$";
+  }
+
+  // ── ШІМ клапана ──
+  // MQTT: .../cmd/shim   payload: "440"
+  // Serial: #440!
+  else if (key == "shim") {
+    cmd = "#" + value + "!";
+  }
+
+  // ── Температура сигналізації ──
+  // MQTT: .../cmd/alarmLimit   payload: "110.00"
+  // Serial: @110.00!
+  else if (key == "alarmLimit") {
+    cmd = "@" + value + "!";
+  }
+
+  // ── Авто режим (повний) ──
+  // MQTT: .../cmd/auto   payload: "1,32.5,22.5" (mode,pwm1,pwm2)
+  //   або "0,777,777" для вимкнення
+  // Serial: $1&32.5*22.5  або  $0&777*777
+  else if (key == "auto") {
+    int c1 = value.indexOf(',');
+    int c2 = value.indexOf(',', c1 + 1);
+    if (c1 > 0 && c2 > c1) {
+      String mode = value.substring(0, c1);
+      String pwm1 = value.substring(c1 + 1, c2);
+      String pwm2 = value.substring(c2 + 1);
+      cmd = "$" + mode + "&" + pwm1 + "*" + pwm2;
+    }
+  }
+
+  // ── Температура старт-стоп ──
+  // MQTT: .../cmd/startStop   payload: "90,80" (pwm1,pwm2)
+  // Serial: &90*80
+  else if (key == "startStop") {
+    int c1 = value.indexOf(',');
+    if (c1 > 0) {
+      String pwm1 = value.substring(0, c1);
+      String pwm2 = value.substring(c1 + 1);
+      cmd = "&" + pwm1 + "*" + pwm2;
+    }
+  }
+
+  // ── Дисплей центральна позиція ──
+  // MQTT: .../cmd/display   payload: "0", "1", або "2"
+  // Serial: %0~  %1~  %2~
+  else if (key == "display") {
+    cmd = "%" + value + "~";
+  }
+
+  // ── Raw команда (прямий формат Arduino) ──
+  // MQTT: .../cmd/raw   payload: "^1$" або будь-яка інша
   else if (key == "raw") {
-    // Пряма відправка (наприклад: ^0$1&777*777%#500@110!)
-    Serial.print(value);
+    cmd = value;
+  }
+
+  // Невідомий ключ — ігноруємо
+  else {
+    Serial1.println("[CMD] Невідомий ключ: " + key);
     return;
   }
-  else return; // невідомий ключ
 
-  cmdPending = true;
+  // Відправка
+  if (cmd.length() > 0) {
+    Serial.print(cmd);
+    Serial1.println("[CMD] TX → " + cmd);
+  }
 }
 
-// ─── Відправка команди в Serial (виклик з mqtt_client / web_server) ──────────
-// "key=value" → розбирає і встановлює параметр
-// інакше → raw відправка
+// ─── Відправка команди (виклик з mqtt_client / web_server) ──────────────────
+// Формат "key=value" → розбирає і відправляє окрему команду
+// Інакше → raw відправка
 void serialSendCommand(String cmd) {
 #ifdef ENABLE_SERIAL_BRIDGE
   cmd.trim();
@@ -180,6 +207,12 @@ void serialSendCommand(String cmd) {
   } else {
     // Raw — відправляємо як є
     Serial.print(cmd);
+    Serial1.println("[CMD] TX raw → " + cmd);
   }
 #endif
+}
+
+// ─── Заглушка для сумісності ────────────────────────────────────────────────
+void sendCommandToArduino() {
+  // Команди тепер відправляються одразу в setArduinoCommand()
 }
