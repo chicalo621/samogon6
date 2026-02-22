@@ -26,6 +26,16 @@
 
 #include "config.h"
 
+// ─── Збережені значення для складених команд ────────────────────────────────
+// auto: $mode&endTemp*startTemp
+String storedAutoMode  = "0";
+String storedAutoEnd   = "777";
+String storedAutoStart = "777";
+
+// startStop: &delta*base
+String storedSsDelta = "90";
+String storedSsBase  = "80";
+
 // ─── Імена полів для розпарсених даних (індекс = позиція в пакеті) ───────────
 // Ці імена стають суб-топіками MQTT: .../data/columnTemp тощо
 const char* field_names[MAX_SERIAL_KEYS] = {
@@ -136,31 +146,59 @@ void setArduinoCommand(String key, String value) {
     cmd = "@" + value + "!";
   }
 
-  // ── Авто режим (повний) ──
-  // MQTT: .../cmd/auto   payload: "1,32.5,22.5" (mode,pwm1,pwm2)
-  //   або "0,777,777" для вимкнення
+  // ── Авто режим (повний, складений) ──
+  // MQTT: .../cmd/auto   payload: "1,32.5,22.5" (mode,end,start)
   // Serial: $1&32.5*22.5  або  $0&777*777
   else if (key == "auto") {
     int c1 = value.indexOf(',');
     int c2 = value.indexOf(',', c1 + 1);
     if (c1 > 0 && c2 > c1) {
-      String mode = value.substring(0, c1);
-      String pwm1 = value.substring(c1 + 1, c2);
-      String pwm2 = value.substring(c2 + 1);
-      cmd = "$" + mode + "&" + pwm1 + "*" + pwm2;
+      storedAutoMode  = value.substring(0, c1);
+      storedAutoEnd   = value.substring(c1 + 1, c2);
+      storedAutoStart = value.substring(c2 + 1);
     }
+    cmd = "$" + storedAutoMode + "&" + storedAutoEnd + "*" + storedAutoStart;
   }
 
-  // ── Температура старт-стоп ──
-  // MQTT: .../cmd/startStop   payload: "90,80" (pwm1,pwm2)
+  // ── Авто режим — окремі топіки ──
+  // MQTT: .../cmd/autoMode   payload: "1" або "0"
+  else if (key == "autoMode") {
+    storedAutoMode = value;
+    cmd = "$" + storedAutoMode + "&" + storedAutoEnd + "*" + storedAutoStart;
+  }
+  // MQTT: .../cmd/autoEnd   payload: "32.5" (кінцева температура)
+  else if (key == "autoEnd") {
+    storedAutoEnd = value;
+    cmd = "$" + storedAutoMode + "&" + storedAutoEnd + "*" + storedAutoStart;
+  }
+  // MQTT: .../cmd/autoStart   payload: "22.5" (початкова температура)
+  else if (key == "autoStart") {
+    storedAutoStart = value;
+    cmd = "$" + storedAutoMode + "&" + storedAutoEnd + "*" + storedAutoStart;
+  }
+
+  // ── Температура старт-стоп (складений) ──
+  // MQTT: .../cmd/startStop   payload: "90,80" (delta,base)
   // Serial: &90*80
   else if (key == "startStop") {
     int c1 = value.indexOf(',');
     if (c1 > 0) {
-      String pwm1 = value.substring(0, c1);
-      String pwm2 = value.substring(c1 + 1);
-      cmd = "&" + pwm1 + "*" + pwm2;
+      storedSsDelta = value.substring(0, c1);
+      storedSsBase  = value.substring(c1 + 1);
     }
+    cmd = "&" + storedSsDelta + "*" + storedSsBase;
+  }
+
+  // ── Старт-стоп — окремі топіки ──
+  // MQTT: .../cmd/ssDelta   payload: "90" (дельта)
+  else if (key == "ssDelta") {
+    storedSsDelta = value;
+    cmd = "&" + storedSsDelta + "*" + storedSsBase;
+  }
+  // MQTT: .../cmd/ssBase   payload: "80" (базова температура)
+  else if (key == "ssBase") {
+    storedSsBase = value;
+    cmd = "&" + storedSsDelta + "*" + storedSsBase;
   }
 
   // ── Дисплей центральна позиція ──
