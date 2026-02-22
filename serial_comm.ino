@@ -18,7 +18,7 @@
 #include "config.h"
 
 // ─── Імена полів для розпарсених даних (індекс = позиція в пакеті) ───────────
-// Ці імена стають суб-топіками MQTT: bridge/data/columnTemp тощо
+// Ці імена стають суб-топіками MQTT: .../data/columnTemp тощо
 const char* field_names[MAX_SERIAL_KEYS] = {
   "header",              // 0: "HomeSamogon.ru/4.8"
   "columnTemp",          // 1: температура колони
@@ -142,7 +142,7 @@ void sendCommandToArduino() {
 }
 
 // ─── Встановлення параметра команди (з MQTT або веб) ────────────────────────
-// Наприклад: bridge/cmd/shim → key="shim", value="500"
+// Наприклад: .../cmd/shim → key="shim", value="500"
 void setArduinoCommand(String key, String value) {
   value.trim();
 

@@ -104,6 +104,7 @@ void setupWebServer() {
     html.replace("%MQTT_USER%", mqttUser);
     html.replace("%MQTT_PASS%", mqttPass);
     html.replace("%MQTT_CID%", mqttClientId);
+    html.replace("%USER_TOKEN%", userToken);
     html.replace("%MQTT_PUB%", mqttPubTopic);
     html.replace("%MQTT_SUB%", mqttSubTopic);
 
@@ -140,10 +141,19 @@ void setupWebServer() {
       mqttPass = request->getParam("mqtt_pass", true)->value();
     if (request->hasParam("mqtt_client_id", true))
       mqttClientId = request->getParam("mqtt_client_id", true)->value();
-    if (request->hasParam("mqtt_pub_topic", true))
-      mqttPubTopic = request->getParam("mqtt_pub_topic", true)->value();
-    if (request->hasParam("mqtt_sub_topic", true))
-      mqttSubTopic = request->getParam("mqtt_sub_topic", true)->value();
+    if (request->hasParam("user_token", true))
+      userToken = request->getParam("user_token", true)->value();
+
+    // Якщо є userToken — автоматично побудувати топіки
+    buildTopicsFromToken();
+
+    // Якщо userToken порожній — дозволяємо ручне введення топіків
+    if (userToken.length() == 0) {
+      if (request->hasParam("mqtt_pub_topic", true))
+        mqttPubTopic = request->getParam("mqtt_pub_topic", true)->value();
+      if (request->hasParam("mqtt_sub_topic", true))
+        mqttSubTopic = request->getParam("mqtt_sub_topic", true)->value();
+    }
 
     saveSettings();
 

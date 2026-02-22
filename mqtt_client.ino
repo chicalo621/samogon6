@@ -15,7 +15,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   Serial1.println("[MQTT RX] " + topicStr + " : " + message);
 
   // Визначаємо суб-топік (після базового subscribe-топіка)
-  // Наприклад: bridge/cmd/shim → sub-topic = "shim"
+  // Наприклад: 380991234567/1/samogon/cmd/shim → sub-topic = "shim"
   String subTopic = "";
   String baseTopic = mqttSubTopic;
   // Видаляємо /# з кінця для порівняння
@@ -39,7 +39,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
 
   // Маршрутизація команди до Arduino
   if (subTopic.length() > 0) {
-    // bridge/cmd/shim з payload "500" → serialSendCommand("shim=500")
+    // .../cmd/shim з payload "500" → serialSendCommand("shim=500")
     // → setArduinoCommand("shim", "500") → формує ^...$...&...*...%#500@...!
     serialSendCommand(subTopic + "=" + message);
   } else {

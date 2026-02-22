@@ -18,6 +18,7 @@ String localIP = "";
 // ─── Глобальні змінні MQTT ──────────────────────────────────────────────────
 String mqttServer, mqttUser, mqttPass, mqttClientId;
 String mqttPubTopic, mqttSubTopic;
+String userToken;                    // Номер телефону (USER_TOKEN)
 uint16_t mqttPort = DEFAULT_MQTT_PORT;
 bool mqttConnected = false;
 
@@ -53,6 +54,16 @@ String readEEPROMString(int addr, byte limit) {
   return data;
 }
 
+// ─── Побудова MQTT топіків з userToken ───────────────────────────────────────
+// {USER_TOKEN}/{VERSION}/{DEVICE_TYPE}/data  та  .../cmd
+void buildTopicsFromToken() {
+  if (userToken.length() > 0) {
+    String base = userToken + "/" + DEVICE_VERSION + "/" + DEVICE_TYPE;
+    mqttPubTopic = base + "/data";
+    mqttSubTopic = base + "/cmd";
+  }
+}
+
 // ─── Завантаження всіх налаштувань з EEPROM ─────────────────────────────────
 void loadSettings() {
   EEPROM.begin(EEPROM_SIZE);
@@ -68,9 +79,11 @@ void loadSettings() {
     EEPROM.get(ADDR_MQTT_PORT, mqttPort);
     mqttUser      = readEEPROMString(ADDR_MQTT_USER, 32);
     mqttPass      = readEEPROMString(ADDR_MQTT_PASS, 32);
+    mqttClientId  = readEEPROMString(ADDR_MQTT_CLIENT_ID, 32);
+    userToken     = readEEPROMString(ADDR_USER_TOKEN, 20);
+    // Топіки: спочатку з EEPROM, потім перезаписуємо якщо є userToken
     mqttPubTopic  = readEEPROMString(ADDR_MQTT_PUB_TOPIC, 64);
     mqttSubTopic  = readEEPROMString(ADDR_MQTT_SUB_TOPIC, 64);
-    mqttClientId  = readEEPROMString(ADDR_MQTT_CLIENT_ID, 32);
   } else {
     // Значення за замовчуванням
     savedSSID     = DEFAULT_WIFI_SSID;
@@ -82,7 +95,11 @@ void loadSettings() {
     mqttPubTopic  = DEFAULT_MQTT_PUB_TOPIC;
     mqttSubTopic  = DEFAULT_MQTT_SUB_TOPIC;
     mqttClientId  = DEFAULT_MQTT_CLIENT_ID;
+    userToken     = DEFAULT_USER_TOKEN;
   }
+
+  // Якщо є userToken — автоматично побудувати топіки
+  buildTopicsFromToken();
 
   // Захист від порожніх значень
   if (mqttPubTopic.length() == 0) mqttPubTopic = DEFAULT_MQTT_PUB_TOPIC;
@@ -95,6 +112,9 @@ void loadSettings() {
   Serial1.println("Налаштування завантажено.");
   Serial1.println("WiFi SSID: " + savedSSID);
   Serial1.println("MQTT Server: " + mqttServer + ":" + String(mqttPort));
+  Serial1.println("User Token: " + userToken);
+  Serial1.println("Pub Topic: " + mqttPubTopic);
+  Serial1.println("Sub Topic: " + mqttSubTopic);
 }
 
 // ─── Збереження всіх налаштувань у EEPROM ───────────────────────────────────
@@ -113,6 +133,7 @@ void saveSettings() {
   writeEEPROMString(ADDR_MQTT_PUB_TOPIC, mqttPubTopic, 64);
   writeEEPROMString(ADDR_MQTT_SUB_TOPIC, mqttSubTopic, 64);
   writeEEPROMString(ADDR_MQTT_CLIENT_ID, mqttClientId, 32);
+  writeEEPROMString(ADDR_USER_TOKEN, userToken, 20);
 
   EEPROM.commit();
   EEPROM.end();
@@ -132,6 +153,7 @@ void serialLoop();
 void serialSendCommand(String cmd);
 void setArduinoCommand(String key, String value);
 void sendCommandToArduino();
+void buildTopicsFromToken();
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  SETUP

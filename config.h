@@ -14,19 +14,26 @@
 // ─── Налаштування WiFi за замовчуванням ─────────────────────────────────────
 #define DEFAULT_WIFI_SSID      ""               // SSID за замовчуванням (порожній = AP режим)
 #define DEFAULT_WIFI_PASS      ""               // Пароль за замовчуванням
-#define AP_SSID                "MQTT_Bridge"    // Назва точки доступу
+#define AP_SSID                "Samogon_Setup"  // Назва точки доступу
 #define AP_PASS                "12345678"        // Пароль точки доступу
 #define WIFI_CONNECT_TIMEOUT   10000             // Таймаут підключення (мс)
 #define WIFI_RECONNECT_INTERVAL 20000            // Інтервал перепідключення (мс)
+
+// ─── Ідентифікація пристрою (для побудови MQTT топіків) ──────────────────────
+#define DEVICE_VERSION         "1"               // Версія протоколу
+#define DEVICE_TYPE            "samogon"          // Тип пристрою
+#define DEFAULT_USER_TOKEN     ""                // Номер телефону (380991234567)
 
 // ─── Налаштування MQTT за замовчуванням ─────────────────────────────────────
 #define DEFAULT_MQTT_SERVER    ""                // MQTT сервер
 #define DEFAULT_MQTT_PORT      1883              // MQTT порт
 #define DEFAULT_MQTT_USER      ""                // MQTT користувач
 #define DEFAULT_MQTT_PASS      ""                // MQTT пароль
-#define DEFAULT_MQTT_CLIENT_ID "mqtt_bridge"     // MQTT Client ID
-#define DEFAULT_MQTT_PUB_TOPIC "bridge/data"     // Топік для публікації даних з Serial
-#define DEFAULT_MQTT_SUB_TOPIC "bridge/cmd"      // Топік для підписки (команди → Serial)
+#define DEFAULT_MQTT_CLIENT_ID "samogon"         // MQTT Client ID
+// Топіки будуються автоматично: {USER_TOKEN}/{VERSION}/{DEVICE_TYPE}/data|cmd
+// Якщо USER_TOKEN порожній — використовуються значення нижче
+#define DEFAULT_MQTT_PUB_TOPIC "samogon/data"    // Топік публікації (fallback)
+#define DEFAULT_MQTT_SUB_TOPIC "samogon/cmd"     // Топік підписки (fallback)
 #define MQTT_RECONNECT_INTERVAL 5000             // Інтервал перепідключення MQTT (мс)
 
 // ─── Налаштування Serial ────────────────────────────────────────────────────
@@ -51,7 +58,8 @@
 #define ADDR_MQTT_PUB_TOPIC    176  // 65 байт  (64 + null)
 #define ADDR_MQTT_SUB_TOPIC    241  // 65 байт  (64 + null)
 #define ADDR_MQTT_CLIENT_ID    306  // 33 байти (32 + null)
-// 339–511 — резерв
+#define ADDR_USER_TOKEN        339  // 21 байт  (20 + null) — номер телефону
+// 360–511 — резерв
 
 // ─── MQTT OTA ───────────────────────────────────────────────────────────────
 #define MQTT_OTA_CHUNK_SIZE    4096              // Максимальний розмір чанка прошивки (байт)

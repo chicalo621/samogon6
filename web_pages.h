@@ -248,8 +248,24 @@ function selectSSID(){
 var sel=document.getElementById('ssid_list');
 if(sel.value){document.getElementById('ssid').value=sel.value;}
 }
+function updateTopicPreview(){
+var tk=document.getElementById('user_token').value.trim();
+var pp=document.getElementById('pub_preview');
+var sp=document.getElementById('sub_preview');
+var mt=document.getElementById('manual_topics');
+if(tk.length>0){
+pp.innerText=tk+'/1/samogon/data/{key}';
+sp.innerText=tk+'/1/samogon/cmd/{key}';
+mt.style.display='none';
+}else{
+pp.innerText='samogon/data/{key} (вручну)';
+sp.innerText='samogon/cmd/{key} (вручну)';
+mt.style.display='block';
+}
+}
 window.onload=function(){document.getElementById('WiFi').style.display='block';
-document.querySelector('.tablinks').className+=' active';};
+document.querySelector('.tablinks').className+=' active';
+updateTopicPreview();};
 </script>
 </head><body>
 <div class="c">
@@ -302,13 +318,26 @@ document.querySelector('.tablinks').className+=' active';};
 <input type="text" name="mqtt_client_id" value="%MQTT_CID%">
 <div class="hint">Унікальний ідентифікатор пристрою</div>
 
+<div class="sep"></div>
+
+<label>📱 Номер телефону (User Token):</label>
+<input type="text" name="user_token" id="user_token" value="%USER_TOKEN%" placeholder="380991234567" oninput="updateTopicPreview()">
+<div class="hint">Вводите номер — топіки побудуються автоматично</div>
+
+<div id="topic_preview" style="margin:10px 0;padding:10px;background:#1a1a2e;border-radius:8px;font-family:monospace;font-size:.85em">
+<div style="color:#888;margin-bottom:4px">📤 Публікація:</div>
+<div id="pub_preview" style="color:#2ecc71;margin-bottom:8px">—</div>
+<div style="color:#888;margin-bottom:4px">📥 Підписка:</div>
+<div id="sub_preview" style="color:#f39c12">—</div>
+</div>
+
+<div id="manual_topics" style="display:none">
 <label>Топік публікації (Serial → MQTT):</label>
-<input type="text" name="mqtt_pub_topic" value="%MQTT_PUB%">
-<div class="hint">Дані з Serial публікуються в {топік}/{ключ}</div>
+<input type="text" name="mqtt_pub_topic" id="mqtt_pub" value="%MQTT_PUB%">
 
 <label>Топік підписки (MQTT → Serial):</label>
-<input type="text" name="mqtt_sub_topic" value="%MQTT_SUB%">
-<div class="hint">Повідомлення з {топік}/# пересилаються в Serial</div>
+<input type="text" name="mqtt_sub_topic" id="mqtt_sub" value="%MQTT_SUB%">
+</div>
 
 <div id="mmsg" class="msg"></div>
 <div style="margin-top:15px"><button type="submit" class="b">💾 Зберегти MQTT</button></div>
