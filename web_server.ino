@@ -103,6 +103,8 @@ void setupWebServer() {
     html.replace("%MQTT_PORT%", String(mqttPort));
     html.replace("%MQTT_USER%", mqttUser);
     html.replace("%MQTT_PASS%", mqttPass);
+    html.replace("%DEV_TYPE%", String(DEVICE_TYPE));
+    html.replace("%DEV_VER%", String(DEVICE_VERSION));
     html.replace("%MQTT_CID%", mqttClientId);
     html.replace("%USER_TOKEN%", userToken);
     html.replace("%MQTT_PUB%", mqttPubTopic);
@@ -119,14 +121,13 @@ void setupWebServer() {
         request->send(200, "text/plain", "OK");
         hotspotSetup();
       } else {
-        String newSSID = request->hasParam("ssid", true) ? request->getParam("ssid", true)->value() : "";
-        String newPass = request->hasParam("pass", true) ? request->getParam("pass", true)->value() : "";
-        savedSSID = newSSID;
-        savedPass = newPass;
-        saveSettings();
+        savedSSID = request->hasParam("ssid", true) ? request->getParam("ssid", true)->value() : "";
+        savedPass = request->hasParam("pass", true) ? request->getParam("pass", true)->value() : "";
+        // Відповідь одразу, збереження та підключення — в loop()
         request->send(200, "text/plain", "OK");
-        // ConnectWIFI блокуючий — виконається після відповіді
-        delay(100);
+        settingsNeedSave = true;
+        // WiFi реконнект теж відкладений
+        delay(50);
         ConnectWIFI(savedSSID, savedPass);
       }
     } else {
@@ -144,8 +145,6 @@ void setupWebServer() {
       mqttUser = request->getParam("mqtt_user", true)->value();
     if (request->hasParam("mqtt_pass", true))
       mqttPass = request->getParam("mqtt_pass", true)->value();
-    if (request->hasParam("mqtt_client_id", true))
-      mqttClientId = request->getParam("mqtt_client_id", true)->value();
     if (request->hasParam("user_token", true))
       userToken = request->getParam("user_token", true)->value();
 
@@ -160,12 +159,13 @@ void setupWebServer() {
         mqttSubTopic = request->getParam("mqtt_sub_topic", true)->value();
     }
 
-    saveSettings();
+    // Client ID автоматично = DEVICE_TYPE + "_" + ChipID
+    mqttClientId = String(DEVICE_TYPE) + "_" + String(ESP.getChipId(), HEX);
 
-    // Відповідь ПЕРЕД реконнектом, щоб браузер не чекав
+    // Відповідь одразу, важка робота — в loop()
     request->send(200, "text/plain", "OK");
 
-    // Реконнект відкладений — виконається в loop()
+    settingsNeedSave = true;
     mqttNeedsReconnect = true;
   });
 

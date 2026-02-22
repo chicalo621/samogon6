@@ -22,6 +22,7 @@ String userToken;                    // Номер телефону (USER_TOKEN)
 uint16_t mqttPort = DEFAULT_MQTT_PORT;
 bool mqttConnected = false;
 volatile bool mqttNeedsReconnect = false;  // Прапорець відкладеного реконнекту
+volatile bool settingsNeedSave = false;    // Прапорець відкладеного збереження
 
 WiFiClient wifiClient;
 PubSubClient mqttClient(wifiClient);
@@ -105,8 +106,10 @@ void loadSettings() {
   // Захист від порожніх значень
   if (mqttPubTopic.length() == 0) mqttPubTopic = DEFAULT_MQTT_PUB_TOPIC;
   if (mqttSubTopic.length() == 0) mqttSubTopic = DEFAULT_MQTT_SUB_TOPIC;
-  if (mqttClientId.length() == 0) mqttClientId = DEFAULT_MQTT_CLIENT_ID;
   if (mqttPort == 0) mqttPort = DEFAULT_MQTT_PORT;
+
+  // Client ID завжди автоматичний: sam_XXXX
+  mqttClientId = String(DEVICE_TYPE) + "_" + String(ESP.getChipId(), HEX);
 
   EEPROM.end();
 
@@ -182,6 +185,13 @@ void loop() {
   serialLoop();               // Прийом та парсинг даних з Serial
   mqttLoop();                 // Обробка MQTT (реконнект + відправка)
   mqttOtaLoop();              // Обробка OTA через MQTT
+
+  // Відкладене збереження налаштувань (після веб-форми)
+  if (settingsNeedSave) {
+    settingsNeedSave = false;
+    saveSettings();
+    Serial1.println("[LOOP] Налаштування збережено (deferred).");
+  }
 
   // Відкладений реконнект MQTT (після збереження налаштувань з веб)
   if (mqttNeedsReconnect) {

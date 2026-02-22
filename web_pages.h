@@ -193,6 +193,9 @@ input[type=radio]{margin-right:5px}
 .msg.ok{background:#1a472a;color:#2ecc71;display:block}
 .msg.err{background:#4a1a1a;color:#e74c3c;display:block}
 .hint{color:#666;font-size:.8em;margin:2px 0 8px}
+.row{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #333}
+.row:last-child{border-bottom:none}
+.lbl{color:#aaa}.val{color:#4CAF50;font-weight:bold}
 </style>
 <script>
 function openTab(evt,name){
@@ -314,9 +317,11 @@ updateTopicPreview();};
 <label>Пароль:</label>
 <input type="password" name="mqtt_pass" value="%MQTT_PASS%">
 
-<label>Client ID:</label>
-<input type="text" name="mqtt_client_id" value="%MQTT_CID%">
-<div class="hint">Унікальний ідентифікатор пристрою</div>
+<div style="margin:10px 0;padding:10px;background:#1a1a2e;border-radius:8px;font-size:.9em">
+<div class="row"><span class="lbl">Тип пристрою:</span><span class="val">%DEV_TYPE%</span></div>
+<div class="row"><span class="lbl">Версія протоколу:</span><span class="val">%DEV_VER%</span></div>
+<div class="row"><span class="lbl">Client ID:</span><span class="val" style="font-size:.85em">%MQTT_CID%</span></div>
+</div>
 
 <div class="sep"></div>
 
