@@ -103,9 +103,8 @@ void setupWebServer() {
     html.replace("%MQTT_PORT%", String(mqttPort));
     html.replace("%MQTT_USER%", mqttUser);
     html.replace("%MQTT_PASS%", mqttPass);
-    html.replace("%DEV_TYPE%", String(DEVICE_TYPE));
-    html.replace("%DEV_VER%", String(DEVICE_VERSION));
-    html.replace("%MQTT_CID%", mqttClientId);
+    html.replace("%DEV_TYPE%", deviceType);
+    html.replace("%DEV_VER%", deviceVersion);
     html.replace("%USER_TOKEN%", userToken);
     html.replace("%MQTT_PUB%", mqttPubTopic);
     html.replace("%MQTT_SUB%", mqttSubTopic);
@@ -145,6 +144,10 @@ void setupWebServer() {
       mqttUser = request->getParam("mqtt_user", true)->value();
     if (request->hasParam("mqtt_pass", true))
       mqttPass = request->getParam("mqtt_pass", true)->value();
+    if (request->hasParam("device_type", true))
+      deviceType = request->getParam("device_type", true)->value();
+    if (request->hasParam("device_version", true))
+      deviceVersion = request->getParam("device_version", true)->value();
     if (request->hasParam("user_token", true))
       userToken = request->getParam("user_token", true)->value();
 
@@ -159,8 +162,8 @@ void setupWebServer() {
         mqttSubTopic = request->getParam("mqtt_sub_topic", true)->value();
     }
 
-    // Client ID автоматично = DEVICE_TYPE + "_" + ChipID
-    mqttClientId = String(DEVICE_TYPE) + "_" + String(ESP.getChipId(), HEX);
+    // Client ID = deviceType + ChipID
+    mqttClientId = deviceType + "_" + String(ESP.getChipId(), HEX);
 
     // Відповідь одразу, важка робота — в loop()
     request->send(200, "text/plain", "OK");

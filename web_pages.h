@@ -253,16 +253,18 @@ if(sel.value){document.getElementById('ssid').value=sel.value;}
 }
 function updateTopicPreview(){
 var tk=document.getElementById('user_token').value.trim();
+var dt=document.getElementById('device_type').value.trim()||'sam';
+var dv=document.getElementById('device_version').value.trim()||'1';
 var pp=document.getElementById('pub_preview');
 var sp=document.getElementById('sub_preview');
 var mt=document.getElementById('manual_topics');
 if(tk.length>0){
-pp.innerText=tk+'/1/sam/data/{key}';
-sp.innerText=tk+'/1/sam/cmd/{key}';
+pp.innerText=tk+'/'+dv+'/'+dt+'/data/{key}';
+sp.innerText=tk+'/'+dv+'/'+dt+'/cmd/{key}';
 mt.style.display='none';
 }else{
-pp.innerText='sam/data/{key} (вручну)';
-sp.innerText='sam/cmd/{key} (вручну)';
+pp.innerText=dt+'/data/{key} (вручну)';
+sp.innerText=dt+'/cmd/{key} (вручну)';
 mt.style.display='block';
 }
 }
@@ -317,11 +319,13 @@ updateTopicPreview();};
 <label>Пароль:</label>
 <input type="password" name="mqtt_pass" value="%MQTT_PASS%">
 
-<div style="margin:10px 0;padding:10px;background:#1a1a2e;border-radius:8px;font-size:.9em">
-<div class="row"><span class="lbl">Тип пристрою:</span><span class="val">%DEV_TYPE%</span></div>
-<div class="row"><span class="lbl">Версія протоколу:</span><span class="val">%DEV_VER%</span></div>
-<div class="row"><span class="lbl">Client ID:</span><span class="val" style="font-size:.85em">%MQTT_CID%</span></div>
-</div>
+<div class="sep"></div>
+
+<label>🏷 Тип пристрою:</label>
+<input type="text" name="device_type" id="device_type" value="%DEV_TYPE%" placeholder="sam" oninput="updateTopicPreview()">
+
+<label>📌 Версія протоколу:</label>
+<input type="text" name="device_version" id="device_version" value="%DEV_VER%" placeholder="1" oninput="updateTopicPreview()">
 
 <div class="sep"></div>
 

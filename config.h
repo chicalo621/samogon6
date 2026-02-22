@@ -59,7 +59,9 @@
 #define ADDR_MQTT_SUB_TOPIC    241  // 65 байт  (64 + null)
 #define ADDR_MQTT_CLIENT_ID    306  // 33 байти (32 + null)
 #define ADDR_USER_TOKEN        339  // 21 байт  (20 + null) — номер телефону
-// 360–511 — резерв
+#define ADDR_DEVICE_TYPE       360  // 17 байт  (16 + null) — тип пристрою
+#define ADDR_DEVICE_VERSION    377  // 9 байт   (8 + null)  — версія протоколу
+// 386–511 — резерв
 
 // ─── MQTT OTA ───────────────────────────────────────────────────────────────
 #define MQTT_OTA_CHUNK_SIZE    4096              // Максимальний розмір чанка прошивки (байт)

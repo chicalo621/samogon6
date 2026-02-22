@@ -19,6 +19,8 @@ String localIP = "";
 String mqttServer, mqttUser, mqttPass, mqttClientId;
 String mqttPubTopic, mqttSubTopic;
 String userToken;                    // Номер телефону (USER_TOKEN)
+String deviceType;                   // Тип пристрою (редагується через веб)
+String deviceVersion;                // Версія протоколу (редагується через веб)
 uint16_t mqttPort = DEFAULT_MQTT_PORT;
 bool mqttConnected = false;
 volatile bool mqttNeedsReconnect = false;  // Прапорець відкладеного реконнекту
@@ -59,8 +61,8 @@ String readEEPROMString(int addr, byte limit) {
 // ─── Побудова MQTT топіків з userToken ───────────────────────────────────────
 // {USER_TOKEN}/{VERSION}/{DEVICE_TYPE}/data  та  .../cmd
 void buildTopicsFromToken() {
-  if (userToken.length() > 0) {
-    String base = userToken + "/" + DEVICE_VERSION + "/" + DEVICE_TYPE;
+  if (userToken.length() > 0 && deviceType.length() > 0) {
+    String base = userToken + "/" + deviceVersion + "/" + deviceType;
     mqttPubTopic = base + "/data";
     mqttSubTopic = base + "/cmd";
   }
@@ -83,6 +85,8 @@ void loadSettings() {
     mqttPass      = readEEPROMString(ADDR_MQTT_PASS, 32);
     mqttClientId  = readEEPROMString(ADDR_MQTT_CLIENT_ID, 32);
     userToken     = readEEPROMString(ADDR_USER_TOKEN, 20);
+    deviceType    = readEEPROMString(ADDR_DEVICE_TYPE, 16);
+    deviceVersion = readEEPROMString(ADDR_DEVICE_VERSION, 8);
     // Топіки: спочатку з EEPROM, потім перезаписуємо якщо є userToken
     mqttPubTopic  = readEEPROMString(ADDR_MQTT_PUB_TOPIC, 64);
     mqttSubTopic  = readEEPROMString(ADDR_MQTT_SUB_TOPIC, 64);
@@ -98,6 +102,8 @@ void loadSettings() {
     mqttSubTopic  = DEFAULT_MQTT_SUB_TOPIC;
     mqttClientId  = DEFAULT_MQTT_CLIENT_ID;
     userToken     = DEFAULT_USER_TOKEN;
+    deviceType    = DEVICE_TYPE;
+    deviceVersion = DEVICE_VERSION;
   }
 
   // Якщо є userToken — автоматично побудувати топіки
@@ -107,9 +113,11 @@ void loadSettings() {
   if (mqttPubTopic.length() == 0) mqttPubTopic = DEFAULT_MQTT_PUB_TOPIC;
   if (mqttSubTopic.length() == 0) mqttSubTopic = DEFAULT_MQTT_SUB_TOPIC;
   if (mqttPort == 0) mqttPort = DEFAULT_MQTT_PORT;
+  if (deviceType.length() == 0) deviceType = DEVICE_TYPE;
+  if (deviceVersion.length() == 0) deviceVersion = DEVICE_VERSION;
 
-  // Client ID завжди автоматичний: sam_XXXX
-  mqttClientId = String(DEVICE_TYPE) + "_" + String(ESP.getChipId(), HEX);
+  // Client ID: {deviceType}_{ChipID}
+  mqttClientId = deviceType + "_" + String(ESP.getChipId(), HEX);
 
   EEPROM.end();
 
@@ -138,6 +146,8 @@ void saveSettings() {
   writeEEPROMString(ADDR_MQTT_SUB_TOPIC, mqttSubTopic, 64);
   writeEEPROMString(ADDR_MQTT_CLIENT_ID, mqttClientId, 32);
   writeEEPROMString(ADDR_USER_TOKEN, userToken, 20);
+  writeEEPROMString(ADDR_DEVICE_TYPE, deviceType, 16);
+  writeEEPROMString(ADDR_DEVICE_VERSION, deviceVersion, 8);
 
   EEPROM.commit();
   EEPROM.end();
