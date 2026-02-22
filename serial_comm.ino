@@ -26,6 +26,15 @@
 
 #include "config.h"
 
+// ─── Буфери для складених команд (кожен топік приходить окремо) ──────────────
+// auto: $mode&endT*startT  →  три окремих топіки autoMode, autoEnd, autoStart
+String buf_autoMode  = "";
+String buf_autoEnd   = "";
+String buf_autoStart = "";
+// startStop: &start*stop  →  два окремих топіки start, stop
+String buf_start = "";
+String buf_stop  = "";
+
 // ─── Імена полів для розпарсених даних (індекс = позиція в пакеті) ───────────
 // Ці імена стають суб-топіками MQTT: .../data/columnTemp тощо
 const char* field_names[MAX_SERIAL_KEYS] = {
@@ -136,29 +145,44 @@ void setArduinoCommand(String key, String value) {
     cmd = "@" + value + "!";
   }
 
-  // ── Авто режим ──
-  // MQTT: .../cmd/auto   payload: "1,32.5,22.5" (mode,endTemp,startTemp)
+  // ── Авто режим (3 окремих топіки → збираємо і відправляємо) ──
+  // MQTT: .../cmd/autoMode   payload: "1" або "0"
+  // MQTT: .../cmd/autoEnd    payload: "32.5"
+  // MQTT: .../cmd/autoStart  payload: "22.5"
   // Serial: $1&32.5*22.5  або  $0&777*777
-  else if (key == "auto") {
-    int c1 = value.indexOf(',');
-    int c2 = value.indexOf(',', c1 + 1);
-    if (c1 > 0 && c2 > c1) {
-      String mode  = value.substring(0, c1);
-      String endT  = value.substring(c1 + 1, c2);
-      String startT = value.substring(c2 + 1);
-      cmd = "$" + mode + "&" + endT + "*" + startT;
+  else if (key == "autoMode") {
+    buf_autoMode = value;
+    if (buf_autoEnd.length() > 0 && buf_autoStart.length() > 0) {
+      cmd = "$" + buf_autoMode + "&" + buf_autoEnd + "*" + buf_autoStart;
+    }
+  }
+  else if (key == "autoEnd") {
+    buf_autoEnd = value;
+    if (buf_autoMode.length() > 0 && buf_autoStart.length() > 0) {
+      cmd = "$" + buf_autoMode + "&" + buf_autoEnd + "*" + buf_autoStart;
+    }
+  }
+  else if (key == "autoStart") {
+    buf_autoStart = value;
+    if (buf_autoMode.length() > 0 && buf_autoEnd.length() > 0) {
+      cmd = "$" + buf_autoMode + "&" + buf_autoEnd + "*" + buf_autoStart;
     }
   }
 
-  // ── Температура старт-стоп ──
-  // MQTT: .../cmd/startStop   payload: "90,80" (delta,base)
+  // ── Температура старт-стоп (2 окремих топіки → збираємо і відправляємо) ──
+  // MQTT: .../cmd/start   payload: "90"
+  // MQTT: .../cmd/stop    payload: "80"
   // Serial: &90*80
-  else if (key == "startStop") {
-    int c1 = value.indexOf(',');
-    if (c1 > 0) {
-      String delta = value.substring(0, c1);
-      String base  = value.substring(c1 + 1);
-      cmd = "&" + delta + "*" + base;
+  else if (key == "start") {
+    buf_start = value;
+    if (buf_stop.length() > 0) {
+      cmd = "&" + buf_start + "*" + buf_stop;
+    }
+  }
+  else if (key == "stop") {
+    buf_stop = value;
+    if (buf_start.length() > 0) {
+      cmd = "&" + buf_start + "*" + buf_stop;
     }
   }
 
