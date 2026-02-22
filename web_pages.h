@@ -254,12 +254,12 @@ var pp=document.getElementById('pub_preview');
 var sp=document.getElementById('sub_preview');
 var mt=document.getElementById('manual_topics');
 if(tk.length>0){
-pp.innerText=tk+'/1/samogon/data/{key}';
-sp.innerText=tk+'/1/samogon/cmd/{key}';
+pp.innerText=tk+'/1/sam/data/{key}';
+sp.innerText=tk+'/1/sam/cmd/{key}';
 mt.style.display='none';
 }else{
-pp.innerText='samogon/data/{key} (вручну)';
-sp.innerText='samogon/cmd/{key} (вручну)';
+pp.innerText='sam/data/{key} (вручну)';
+sp.innerText='sam/cmd/{key} (вручну)';
 mt.style.display='block';
 }
 }

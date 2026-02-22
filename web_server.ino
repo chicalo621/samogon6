@@ -116,6 +116,7 @@ void setupWebServer() {
     if (request->hasParam("mode", true)) {
       String mode = request->getParam("mode", true)->value();
       if (mode == "hotspot") {
+        request->send(200, "text/plain", "OK");
         hotspotSetup();
       } else {
         String newSSID = request->hasParam("ssid", true) ? request->getParam("ssid", true)->value() : "";
@@ -123,10 +124,14 @@ void setupWebServer() {
         savedSSID = newSSID;
         savedPass = newPass;
         saveSettings();
+        request->send(200, "text/plain", "OK");
+        // ConnectWIFI блокуючий — виконається після відповіді
+        delay(100);
         ConnectWIFI(savedSSID, savedPass);
       }
+    } else {
+      request->send(400, "text/plain", "Missing mode");
     }
-    request->send(200, "text/plain", "OK");
   });
 
   // ─── Збереження MQTT ──────────────────────────────────────────────────────
@@ -157,10 +162,11 @@ void setupWebServer() {
 
     saveSettings();
 
-    // Переініціалізація MQTT з новими налаштуваннями
-    mqttReconnectWithNewSettings();
-
+    // Відповідь ПЕРЕД реконнектом, щоб браузер не чекав
     request->send(200, "text/plain", "OK");
+
+    // Реконнект відкладений — виконається в loop()
+    mqttNeedsReconnect = true;
   });
 
   // ─── Сканування WiFi мереж ────────────────────────────────────────────────

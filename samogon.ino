@@ -21,6 +21,7 @@ String mqttPubTopic, mqttSubTopic;
 String userToken;                    // Номер телефону (USER_TOKEN)
 uint16_t mqttPort = DEFAULT_MQTT_PORT;
 bool mqttConnected = false;
+volatile bool mqttNeedsReconnect = false;  // Прапорець відкладеного реконнекту
 
 WiFiClient wifiClient;
 PubSubClient mqttClient(wifiClient);
@@ -149,6 +150,7 @@ void initMqttOTA();
 void mqttOtaLoop();
 void mqttInit();
 void mqttLoop();
+void mqttReconnectWithNewSettings();
 void serialLoop();
 void serialSendCommand(String cmd);
 void setArduinoCommand(String key, String value);
@@ -180,6 +182,12 @@ void loop() {
   serialLoop();               // Прийом та парсинг даних з Serial
   mqttLoop();                 // Обробка MQTT (реконнект + відправка)
   mqttOtaLoop();              // Обробка OTA через MQTT
+
+  // Відкладений реконнект MQTT (після збереження налаштувань з веб)
+  if (mqttNeedsReconnect) {
+    mqttNeedsReconnect = false;
+    mqttReconnectWithNewSettings();
+  }
 
   yield();
 

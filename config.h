@@ -21,7 +21,7 @@
 
 // ─── Ідентифікація пристрою (для побудови MQTT топіків) ──────────────────────
 #define DEVICE_VERSION         "1"               // Версія протоколу
-#define DEVICE_TYPE            "samogon"          // Тип пристрою
+#define DEVICE_TYPE            "sam"             // Тип пристрою
 #define DEFAULT_USER_TOKEN     ""                // Номер телефону (380991234567)
 
 // ─── Налаштування MQTT за замовчуванням ─────────────────────────────────────
@@ -29,11 +29,11 @@
 #define DEFAULT_MQTT_PORT      1883              // MQTT порт
 #define DEFAULT_MQTT_USER      ""                // MQTT користувач
 #define DEFAULT_MQTT_PASS      ""                // MQTT пароль
-#define DEFAULT_MQTT_CLIENT_ID "samogon"         // MQTT Client ID
+#define DEFAULT_MQTT_CLIENT_ID "sam"             // MQTT Client ID
 // Топіки будуються автоматично: {USER_TOKEN}/{VERSION}/{DEVICE_TYPE}/data|cmd
 // Якщо USER_TOKEN порожній — використовуються значення нижче
-#define DEFAULT_MQTT_PUB_TOPIC "samogon/data"    // Топік публікації (fallback)
-#define DEFAULT_MQTT_SUB_TOPIC "samogon/cmd"     // Топік підписки (fallback)
+#define DEFAULT_MQTT_PUB_TOPIC "sam/data"        // Топік публікації (fallback)
+#define DEFAULT_MQTT_SUB_TOPIC "sam/cmd"         // Топік підписки (fallback)
 #define MQTT_RECONNECT_INTERVAL 5000             // Інтервал перепідключення MQTT (мс)
 
 // ─── Налаштування Serial ────────────────────────────────────────────────────
