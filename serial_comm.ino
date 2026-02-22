@@ -27,8 +27,7 @@
 #include "config.h"
 
 // ─── Буфери для складених команд (кожен топік приходить окремо) ──────────────
-// auto: $mode&endT*startT  →  три окремих топіки autoMode, autoEnd, autoStart
-String buf_autoMode  = "";
+// auto: $mode&endT*startT  →  autoEnd і autoStart зберігаються, autoMode — тригер
 String buf_autoEnd   = "";
 String buf_autoStart = "";
 // startStop: &start*stop  →  два окремих топіки start, stop
@@ -145,27 +144,22 @@ void setArduinoCommand(String key, String value) {
     cmd = "@" + value + "!";
   }
 
-  // ── Авто режим (3 окремих топіки → збираємо і відправляємо) ──
-  // MQTT: .../cmd/autoMode   payload: "1" або "0"
-  // MQTT: .../cmd/autoEnd    payload: "32.5"
-  // MQTT: .../cmd/autoStart  payload: "22.5"
+  // ── Авто режим (3 окремих топіки) ──
+  // MQTT: .../cmd/autoMode   payload: "1" або "0"  ← ТРИГЕР відправки
+  // MQTT: .../cmd/autoEnd    payload: "32.5"        ← просто зберігаємо
+  // MQTT: .../cmd/autoStart  payload: "22.5"        ← просто зберігаємо
   // Serial: $1&32.5*22.5  або  $0&777*777
-  else if (key == "autoMode") {
-    buf_autoMode = value;
-    if (buf_autoEnd.length() > 0 && buf_autoStart.length() > 0) {
-      cmd = "$" + buf_autoMode + "&" + buf_autoEnd + "*" + buf_autoStart;
-    }
-  }
   else if (key == "autoEnd") {
-    buf_autoEnd = value;
-    if (buf_autoMode.length() > 0 && buf_autoStart.length() > 0) {
-      cmd = "$" + buf_autoMode + "&" + buf_autoEnd + "*" + buf_autoStart;
-    }
+    buf_autoEnd = value;   // тільки зберігаємо, не відправляємо
   }
   else if (key == "autoStart") {
-    buf_autoStart = value;
-    if (buf_autoMode.length() > 0 && buf_autoEnd.length() > 0) {
-      cmd = "$" + buf_autoMode + "&" + buf_autoEnd + "*" + buf_autoStart;
+    buf_autoStart = value; // тільки зберігаємо, не відправляємо
+  }
+  else if (key == "autoMode") {
+    if (value == "0") {
+      cmd = "$0&777*777";  // вимкнути авто режим
+    } else {
+      cmd = "$1&" + buf_autoEnd + "*" + buf_autoStart;  // увімкнути з температурами
     }
   }
 
