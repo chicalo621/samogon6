@@ -87,31 +87,41 @@ void parseSerialPacket(String line) {
 }
 
 // ─── Основний цикл прийому Serial ───────────────────────────────────────────
+// Формат потоку (БЕЗ \n):
+//   ...sw8,%,HomeSamogon.ru/4.8,...sw8,%,HomeSamogon.ru/4.8,...
+// Маркер кінця пакету: ,%,
 void serialLoop() {
   static String inputBuffer = "";
 
   while (Serial.available() > 0) {
     char inChar = (char)Serial.read();
 
-    if (inChar == '\r' || inChar == '\n') {
-      if (inputBuffer.length() > 0 && !inputBuffer.startsWith("HomeSamogon")) {
-        inputBuffer = "";
-      }
-      continue;
-    }
+    // Ігноруємо \r \n якщо раптом є
+    if (inChar == '\r' || inChar == '\n') continue;
 
     inputBuffer += inChar;
 
-    // Маркер кінця пакету: ",%" — Arduino шле ...switchString8,%,
-    if (inputBuffer.endsWith(",%")) {
-      parseSerialPacket(inputBuffer);
-      inputBuffer = "";
+    // Шукаємо повний маркер кінця пакету: ,%,
+    int markerPos = inputBuffer.indexOf(",%,");
+    if (markerPos > 0) {
+      // Витягуємо пакет до маркера (включно з ,%)
+      String packet = inputBuffer.substring(0, markerPos + 2); // до ",%"
+      parseSerialPacket(packet);
+
+      // Все що після ,%,  — це початок наступного пакету
+      inputBuffer = inputBuffer.substring(markerPos + 3);
       continue;
     }
 
     // Захист від переповнення
     if ((int)inputBuffer.length() > SERIAL_BUFFER_SIZE) {
-      inputBuffer = "";
+      // Спробуємо знайти початок пакету в буфері
+      int headerPos = inputBuffer.indexOf("HomeSamogon");
+      if (headerPos > 0) {
+        inputBuffer = inputBuffer.substring(headerPos);
+      } else {
+        inputBuffer = "";
+      }
     }
   }
 }
