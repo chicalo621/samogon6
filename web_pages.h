@@ -424,7 +424,7 @@ if(r.status==='ok'){showMsg('omsg',r.msg,'ok');pf.style.width='100%';pf.innerTex
 else{showMsg('omsg',r.msg||'Помилка','err');document.getElementById('ubtn').disabled=false;}
 }catch(e){showMsg('omsg','Помилка відповіді','err');document.getElementById('ubtn').disabled=false;}
 };
-xhr.onerror=function(){showMsg('omsg','Помилка з\'єднання','err');document.getElementById('ubtn').disabled=false;};
+xhr.onerror=function(){showMsg('omsg','Помога з\'єднання','err');document.getElementById('ubtn').disabled=false;};
 xhr.open('POST','/api/ota_upload');
 xhr.send(fd);
 }
@@ -460,3 +460,138 @@ else{info.innerText='';}
 </div>
 </body></html>)=====";
 
+// ═══════════════════════════════════════════════════════════════════════════
+//  Сторінка автоматизації
+// ═══════════════════════════════════════════════════════════════════════════
+const char AUTOMATION_PAGE[] PROGMEM = R"HTML(
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Автоматика Arduino</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f5f5f5; margin: 0; }
+    .header { background: #7a2222; color: #fff; padding: 12px 16px; font-size: 1.3em; display: flex; align-items: center; }
+    .header .menu { margin-right: 12px; }
+    .status-bar { display: flex; justify-content: space-between; padding: 8px 16px; background: #fff; }
+    .status-block { text-align: center; flex: 1; margin: 0 4px; }
+    .status-block .label { font-size: 0.9em; color: #888; }
+    .status-block .value { font-size: 1.2em; color: #1a1a1a; }
+    .controls { background: #fff; margin: 12px 8px; border-radius: 8px; padding: 12px; box-shadow: 0 2px 8px #ddd; }
+    .sliders { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .slider-block { flex: 1; text-align: center; }
+    .slider-block label { display: block; font-size: 0.9em; margin-bottom: 4px; }
+    .slider-block input[type=range] { width: 80%; }
+    .percent { font-size: 1.1em; margin-bottom: 8px; text-align: center; }
+    .checkmark { display: inline-block; background: #eee; border-radius: 8px; padding: 8px 16px; color: #2a7; font-size: 1.2em; cursor: pointer; margin-left: 12px; }
+    .main-temp-block { background: #fff; margin: 12px 8px; border-radius: 8px; padding: 16px; box-shadow: 0 2px 8px #ddd; text-align: center; }
+    .main-temp { font-size: 2.2em; color: #0055cc; margin: 8px 0; }
+    .stop-start { display: flex; justify-content: space-between; margin-bottom: 8px; }
+    .stop-start span { font-size: 1.1em; color: #0055cc; }
+    .icon-row { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; }
+    .icon { font-size: 2em; }
+    .icon.valve { color: #a22; }
+    .icon.power { color: #1a7a1a; }
+    .input-box { width: 60px; padding: 4px; font-size: 1em; margin: 0 8px; }
+    .info-row { display: flex; justify-content: space-between; align-items: center; margin: 12px 8px; }
+    .info-btn, .refresh-btn { background: #0055cc; color: #fff; border: none; border-radius: 8px; padding: 8px 16px; font-size: 1em; cursor: pointer; }
+    .checkbox-row { margin: 12px 8px; }
+    .expand-section { background: #fff; margin: 12px 8px; border-radius: 8px; padding: 12px; box-shadow: 0 2px 8px #ddd; }
+    .expand-section label { display: block; margin-bottom: 6px; font-size: 1em; }
+    .expand-section input[type=checkbox] { margin-right: 8px; }
+    .expand-section .input-box { width: 80px; }
+    .expand-section .checkmark { margin-left: 8px; }
+    .expand-section .info-btn { margin-top: 8px; }
+    .expand-section .select-btn { background: #aaa; color: #fff; border: none; border-radius: 8px; padding: 8px 16px; font-size: 1em; cursor: pointer; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <span class="menu">&#9776;</span>
+    Автоматика Arduino
+  </div>
+  <div class="status-bar">
+    <div class="status-block">
+      <div class="label">Температура</div>
+      <div class="value" id="mainTemp">23.6°C</div>
+    </div>
+    <div class="status-block">
+      <div class="label">Тиск</div>
+      <div class="value" id="pressure">727.1мм</div>
+    </div>
+    <div class="status-block">
+      <div class="label">Автоматика ver4.8</div>
+      <div class="value" id="version">23.3°C</div>
+    </div>
+  </div>
+  <div class="controls">
+    <div class="percent" id="percent">- 77.0%</div>
+    <div class="sliders">
+      <div class="slider-block">
+        <label>грубо</label>
+        <input type="range" min="0" max="100" value="50" id="coarseSlider">
+      </div>
+      <div class="slider-block">
+        <label>точно</label>
+        <input type="range" min="0" max="100" value="50" id="fineSlider">
+      </div>
+      <div class="slider-block">
+        <span class="checkmark" id="checkBtn">&#10003;</span>
+      </div>
+    </div>
+  </div>
+  <div class="main-temp-block">
+    <div class="stop-start">
+      <span>Стоп: <span id="stopTemp">33.3°C</span></span>
+      <span>Старт: <span id="startTemp">23.3°C</span></span>
+    </div>
+    <div class="main-temp" id="centerTemp">23.3°C</div>
+    <div class="icon-row">
+      <span class="icon valve">&#128739;</span>
+      <input class="input-box" type="number" value="10" id="valveInput">
+      <span class="icon power">&#128722;</span>
+    </div>
+  </div>
+  <div class="info-row">
+    <span>Спиртуозність у кубі</span>
+    <button class="info-btn">&#9432;</button>
+    <button class="refresh-btn">&#8635;</button>
+  </div>
+  <div class="checkbox-row">
+    <input type="checkbox" id="expandChk"> <label for="expandChk">Ще</label>
+  </div>
+  <div class="expand-section" id="expandSection" style="display:none;">
+    <label><input type="checkbox" checked> Спиртуозність у кубі</label>
+    <label><input type="checkbox" checked> Швидкість відбирання</label>
+    <div style="display:flex; align-items:center; margin-bottom:8px;">
+      <button class="refresh-btn">&#8635;</button>
+      <input class="input-box" type="number" placeholder="Об'єм, мл.">
+      <button class="select-btn">Старт</button>
+    </div>
+    <label><input type="checkbox" checked> Сигналізація температури куба</label>
+    <div style="display:flex; align-items:center; margin-bottom:8px;">
+      <span class="icon">&#128276;</span>
+      <input class="input-box" type="number" value="110.00">
+      <span class="checkmark">&#10003;</span>
+    </div>
+    <label><input type="checkbox" checked> Змінити T° Старт-Стоп</label>
+    <div style="display:flex; align-items:center; margin-bottom:8px;">
+      <button class="refresh-btn">&#8635;</button>
+      <input class="input-box" type="number" value="24">
+      <span class="checkmark">&#10003;</span>
+    </div>
+    <label><input type="checkbox" checked> Центральна позиція дисплея</label>
+    <button class="info-btn">&#9432;</button>
+    <button class="select-btn">Вибрати</button>
+  </div>
+  <script>
+    // Toggle expand section
+    document.getElementById('expandChk').addEventListener('change', function() {
+      document.getElementById('expandSection').style.display = this.checked ? 'block' : 'none';
+    });
+    // TODO: Add AJAX to fetch live values from /get_status and update UI
+  </script>
+</body>
+</html>
+)HTML";

@@ -259,6 +259,11 @@ void setupWebServer() {
     }
   );
 
+  // ─── Сторінка автоматизації ──────────────────────────────────────────────
+  server.on("/automation", HTTP_GET, [](AsyncWebServerRequest *request) {
+    request->send_P(200, "text/html", AUTOMATION_PAGE);
+  });
+
   // ─── Запуск сервера ───────────────────────────────────────────────────────
   server.begin();
   Serial1.println("[WEB] Сервер запущено.");
