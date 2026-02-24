@@ -126,7 +126,7 @@ void setupWebServer() {
         request->send(200, "text/plain", "OK");
         settingsNeedSave = true;
         // WiFi реконнект теж відкладений
-        delay(50);
+        delay(50000);
         ConnectWIFI(savedSSID, savedPass);
       }
     } else {
@@ -258,6 +258,11 @@ void setupWebServer() {
       }
     }
   );
+
+  // ─── Сторінка автоматизації ──────────────────────────────────────────────
+  server.on("/automation", HTTP_GET, [](AsyncWebServerRequest *request) {
+    request->send_P(200, "text/html", AUTOMATION_PAGE);
+  });
 
   // ─── Запуск сервера ───────────────────────────────────────────────────────
   server.begin();

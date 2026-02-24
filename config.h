@@ -12,8 +12,8 @@
 #define ENABLE_SERIAL_BRIDGE   // Serial ↔ MQTT міст
 
 // ─── Налаштування WiFi за замовчуванням ─────────────────────────────────────
-#define DEFAULT_WIFI_SSID      ""               // SSID за замовчуванням (порожній = AP режим)
-#define DEFAULT_WIFI_PASS      ""               // Пароль за замовчуванням
+#define DEFAULT_WIFI_SSID      "K-18"               // SSID за замовчуванням (порожній = AP режим)
+#define DEFAULT_WIFI_PASS      "1142227freedom"               // Пароль за замовчуванням
 #define AP_SSID                "Samogon_Setup"  // Назва точки доступу
 #define AP_PASS                "12345678"        // Пароль точки доступу
 #define WIFI_CONNECT_TIMEOUT   10000             // Таймаут підключення (мс)
@@ -25,10 +25,10 @@
 #define DEFAULT_USER_TOKEN     ""                // Номер телефону (380991234567)
 
 // ─── Налаштування MQTT за замовчуванням ─────────────────────────────────────
-#define DEFAULT_MQTT_SERVER    ""                // MQTT сервер
-#define DEFAULT_MQTT_PORT      1883              // MQTT порт
-#define DEFAULT_MQTT_USER      ""                // MQTT користувач
-#define DEFAULT_MQTT_PASS      ""                // MQTT пароль
+#define DEFAULT_MQTT_SERVER    "vmi216392.contaboserver.net"                // MQTT сервер
+#define DEFAULT_MQTT_PORT      9001              // MQTT порт
+#define DEFAULT_MQTT_USER      "samovar"                // MQTT користувач
+#define DEFAULT_MQTT_PASS      "ATxRDyJ3R3ad"                // MQTT пароль
 #define DEFAULT_MQTT_CLIENT_ID "sam"             // MQTT Client ID
 // Топіки будуються автоматично: {USER_TOKEN}/{VERSION}/{DEVICE_TYPE}/data|cmd
 // Якщо USER_TOKEN порожній — використовуються значення нижче
