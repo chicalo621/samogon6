@@ -510,6 +510,13 @@ void decodeUartCommand(const char* cmd) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 void sendDataPacket(Print &out) {
+  // Контрольна сума — обчислюємо з тих самих значень, що передаємо
+  float ct1 = roundFloat(cubeTemp, 1);
+  float colt1 = roundFloat(columnTemp, 1);
+  float atm1 = roundFloat(atmPressure, 1);
+  float lowerVal = (ct1 + 3.14f) * (colt1 + atm1);
+  dtostrf(lowerVal, 0, 1, displayLowerBuf);
+
   // Заголовок + температури
   out.print(F("HomeSamogon.ru/4.8,"));
   printFloat(out, columnTemp, 1); out.print(',');
@@ -527,7 +534,7 @@ void sendDataPacket(Print &out) {
   out.print(tempInt2, DEC); out.print(',');
   // alarmTempLimit
   printFloat(out, alarmTempLimit, 2); out.print(',');
-  // displayLowerText (контрольна сума)
+  // контрольна сума
   out.print(displayLowerBuf); out.print(',');
   // alarmTemp
   printFloat(out, alarmTemp, 1); out.print(',');
@@ -788,15 +795,6 @@ void loop() {
   // Тиск
   atmPressure = bmpPressure / 133.3;
 
-  // ─── Формування displayLowerBuf (контрольна сума) ──────────────────────
-  if (tempFlag5 == 1) {
-    // Оригінал: (round(cubeT,1)+3.14) * (round(colT,1)+round(atm,1))
-    float ct1 = roundFloat(cubeTemp, 1);
-    float colt1 = roundFloat(columnTemp, 1);
-    float atm1 = roundFloat(atmPressure, 1);
-    float lowerVal = (ct1 + 3.14f) * (colt1 + atm1);
-    dtostrf(lowerVal, 0, 1, displayLowerBuf);
-  }
 
   // ─── Аварійні прапорці ─────────────────────────────────────────────────
   alarmFlag2 = ((!digitalRead(RAIN_LEAK_INPUT_PIN)) || (alarmTemp > vaporSensorTriggerTemp));
