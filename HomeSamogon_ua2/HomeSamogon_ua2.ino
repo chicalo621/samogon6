@@ -83,7 +83,7 @@ char uartBuf100[UART_BUF_SIZE];  // Буфер BtSerial (port 100)
 uint8_t uartBuf100Len = 0;
 
 // ─── Буфери для дисплея та UART передачі ────────────────────────────────────
-char displayLowerBuf[16];         // Контрольна сума (нижній рядок)
+char displayLowerBuf[20];         // Контрольна сума (нижній рядок)
 char tempStr11Buf[20];            // 2-й рядок LCD ("END DISTILLATION", "!STOP AVAR STOP!", тощо)
 
 // ─── Основні змінні ─────────────────────────────────────────────────────────
@@ -561,7 +561,7 @@ void setup() {
   bmeSensor.begin();
   BtSerial.begin(9600);
   Serial.begin(115200);
-  mainDisplay.begin();
+  mainDisplay.init();
   mainDisplay.noBacklight();
   stou1 = millis();
   stou2 = millis();
