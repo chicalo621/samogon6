@@ -121,7 +121,8 @@ float alarmTempLimit = 110;
 float pressureValue = 0;
 float pwmValue1 = 777;
 float pwmValue2 = 777;
-float pressureSensorValue;
+float pressureSensorValue = 0;
+bool pressureSensorInitialized = false;  // чи отримали перше значення від Arduino
 bool tempFlag33 = 0;
 int tempInt2 = 0;
 bool pwmCoarseFlag = 0;
@@ -245,7 +246,8 @@ void printFloat(Print &out, float val, uint8_t dec) {
 float roundFloat(float val, uint8_t dec) {
   float mult = 1;
   for (uint8_t i = 0; i < dec; i++) mult *= 10;
-  return ((int)(val * mult)) / mult;
+  long rounded = (long)(val * mult + (val >= 0 ? 0.5f : -0.5f));
+  return rounded / mult;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -474,6 +476,7 @@ void decodeUartCommand(const char* cmd) {
   p = strchr(cmd, '*');
   if (p) {
     pressureSensorValue = atmPressure;
+    pressureSensorInitialized = true;
     pwmValue2 = atof(p + 1);
   }
 
@@ -820,7 +823,7 @@ void loop() {
   }
 
   // ─── Зміщення температури при зміні тиску ─────────────────────────────
-  if (pressureCorrectionEnabled == 1) {
+  if (pressureCorrectionEnabled == 1 && pressureSensorInitialized) {
     if (changeNumber4Output) {
       changeNumber4Output = 0;
     } else {
