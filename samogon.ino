@@ -51,7 +51,9 @@ String readEEPROMString(int addr, byte limit) {
   String data;
   char ch;
   int length = 0;
-  while ((ch = EEPROM.read(addr++)) && length < limit) {
+  while (length < limit) {
+    ch = EEPROM.read(addr++);
+    if (ch == 0 || ch == 0xFF) break;  // null-термінатор або чиста flash
     data += ch;
     length++;
   }
@@ -76,20 +78,20 @@ void loadSettings() {
 
   if (flag == SETTINGS_SAVED_FLAG) {
     // WiFi
-    savedSSID = readEEPROMString(ADDR_WIFI_SSID, 32);
-    savedPass = readEEPROMString(ADDR_WIFI_PASS, 32);
+    savedSSID = readEEPROMString(ADDR_WIFI_SSID, LEN_WIFI_SSID);
+    savedPass = readEEPROMString(ADDR_WIFI_PASS, LEN_WIFI_PASS);
     // MQTT
-    mqttServer    = readEEPROMString(ADDR_MQTT_SERVER, 40);
+    mqttServer    = readEEPROMString(ADDR_MQTT_SERVER, LEN_MQTT_SERVER);
     EEPROM.get(ADDR_MQTT_PORT, mqttPort);
-    mqttUser      = readEEPROMString(ADDR_MQTT_USER, 32);
-    mqttPass      = readEEPROMString(ADDR_MQTT_PASS, 32);
-    mqttClientId  = readEEPROMString(ADDR_MQTT_CLIENT_ID, 32);
-    userToken     = readEEPROMString(ADDR_USER_TOKEN, 20);
-    deviceType    = readEEPROMString(ADDR_DEVICE_TYPE, 16);
-    deviceVersion = readEEPROMString(ADDR_DEVICE_VERSION, 8);
+    mqttUser      = readEEPROMString(ADDR_MQTT_USER, LEN_MQTT_USER);
+    mqttPass      = readEEPROMString(ADDR_MQTT_PASS, LEN_MQTT_PASS);
+    mqttClientId  = readEEPROMString(ADDR_MQTT_CLIENT_ID, LEN_MQTT_CLIENT_ID);
+    userToken     = readEEPROMString(ADDR_USER_TOKEN, LEN_USER_TOKEN);
+    deviceType    = readEEPROMString(ADDR_DEVICE_TYPE, LEN_DEVICE_TYPE);
+    deviceVersion = readEEPROMString(ADDR_DEVICE_VERSION, LEN_DEVICE_VERSION);
     // Топіки: спочатку з EEPROM, потім перезаписуємо якщо є userToken
-    mqttPubTopic  = readEEPROMString(ADDR_MQTT_PUB_TOPIC, 64);
-    mqttSubTopic  = readEEPROMString(ADDR_MQTT_SUB_TOPIC, 64);
+    mqttPubTopic  = readEEPROMString(ADDR_MQTT_PUB_TOPIC, LEN_MQTT_TOPIC);
+    mqttSubTopic  = readEEPROMString(ADDR_MQTT_SUB_TOPIC, LEN_MQTT_TOPIC);
   } else {
     // Значення за замовчуванням
     savedSSID     = DEFAULT_WIFI_SSID;
@@ -135,19 +137,19 @@ void saveSettings() {
 
   EEPROM.write(ADDR_SAVED_FLAG, SETTINGS_SAVED_FLAG);
   // WiFi
-  writeEEPROMString(ADDR_WIFI_SSID, savedSSID, 32);
-  writeEEPROMString(ADDR_WIFI_PASS, savedPass, 32);
+  writeEEPROMString(ADDR_WIFI_SSID, savedSSID, LEN_WIFI_SSID);
+  writeEEPROMString(ADDR_WIFI_PASS, savedPass, LEN_WIFI_PASS);
   // MQTT
-  writeEEPROMString(ADDR_MQTT_SERVER, mqttServer, 40);
+  writeEEPROMString(ADDR_MQTT_SERVER, mqttServer, LEN_MQTT_SERVER);
   EEPROM.put(ADDR_MQTT_PORT, mqttPort);
-  writeEEPROMString(ADDR_MQTT_USER, mqttUser, 32);
-  writeEEPROMString(ADDR_MQTT_PASS, mqttPass, 32);
-  writeEEPROMString(ADDR_MQTT_PUB_TOPIC, mqttPubTopic, 64);
-  writeEEPROMString(ADDR_MQTT_SUB_TOPIC, mqttSubTopic, 64);
-  writeEEPROMString(ADDR_MQTT_CLIENT_ID, mqttClientId, 32);
-  writeEEPROMString(ADDR_USER_TOKEN, userToken, 20);
-  writeEEPROMString(ADDR_DEVICE_TYPE, deviceType, 16);
-  writeEEPROMString(ADDR_DEVICE_VERSION, deviceVersion, 8);
+  writeEEPROMString(ADDR_MQTT_USER, mqttUser, LEN_MQTT_USER);
+  writeEEPROMString(ADDR_MQTT_PASS, mqttPass, LEN_MQTT_PASS);
+  writeEEPROMString(ADDR_MQTT_PUB_TOPIC, mqttPubTopic, LEN_MQTT_TOPIC);
+  writeEEPROMString(ADDR_MQTT_SUB_TOPIC, mqttSubTopic, LEN_MQTT_TOPIC);
+  writeEEPROMString(ADDR_MQTT_CLIENT_ID, mqttClientId, LEN_MQTT_CLIENT_ID);
+  writeEEPROMString(ADDR_USER_TOKEN, userToken, LEN_USER_TOKEN);
+  writeEEPROMString(ADDR_DEVICE_TYPE, deviceType, LEN_DEVICE_TYPE);
+  writeEEPROMString(ADDR_DEVICE_VERSION, deviceVersion, LEN_DEVICE_VERSION);
 
   EEPROM.commit();
   EEPROM.end();
@@ -168,7 +170,6 @@ void serialLoop();
 void serialSendCommand(String cmd);
 void setArduinoCommand(String key, String value);
 void sendCommandToArduino();
-void buildTopicsFromToken();
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  SETUP

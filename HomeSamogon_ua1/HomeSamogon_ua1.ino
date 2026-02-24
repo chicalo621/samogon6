@@ -754,7 +754,7 @@ void loop() {
         gsfs16 = tempString13.substring(fsfs13io, fsfs14io); // Підрядок від $ до & (_GSFS16)
         gsfs12 = gsfs16.substring(1); // Підрядок після $ (_GSFS12)
         if ((String("0")).equals(gsfs12)) triggerFlag3b = 0; // Значення після $ (_trgr3 = 0)
-        if ((String("1")).equals(gsfs12)) triggerFlag3b = 1; // Значення після $ (_trgr3 = 1)
+        if ((String("1")).equals(gsf12)) triggerFlag3b = 1; // Значення після $ (_trgr3 = 1)
         if (fsfs13co) {
             tempFlag33 = triggerFlag3b; // Прапорець 33 (_gtv33)
         }

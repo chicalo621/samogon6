@@ -47,21 +47,33 @@
 #define EEPROM_SIZE            512
 #define SETTINGS_SAVED_FLAG    0xAB              // Маркер збережених налаштувань
 
-// Адреси EEPROM
+// Розміри полів (без null-термінатора)
+#define LEN_WIFI_SSID          32                // SSID WiFi (макс 32 за стандартом)
+#define LEN_WIFI_PASS          63                // Пароль WiFi (макс 63 за WPA2)
+#define LEN_MQTT_SERVER        40                // MQTT сервер
+#define LEN_MQTT_USER          32                // MQTT користувач
+#define LEN_MQTT_PASS          32                // MQTT пароль
+#define LEN_MQTT_TOPIC         64                // MQTT топік
+#define LEN_MQTT_CLIENT_ID     32                // MQTT Client ID
+#define LEN_USER_TOKEN         20                // Номер телефону
+#define LEN_DEVICE_TYPE        16                // Тип пристрою
+#define LEN_DEVICE_VERSION     8                 // Версія протоколу
+
+// Адреси EEPROM (кожне поле = розмір + 1 байт null-термінатор)
 #define ADDR_SAVED_FLAG        0    // 1 байт  — маркер збереження
 #define ADDR_WIFI_SSID         1    // 33 байти (32 + null)
-#define ADDR_WIFI_PASS         34   // 33 байти (32 + null)
-#define ADDR_MQTT_SERVER       67   // 41 байт  (40 + null)
-#define ADDR_MQTT_PORT         108  // 2 байти  (uint16_t)
-#define ADDR_MQTT_USER         110  // 33 байти (32 + null)
-#define ADDR_MQTT_PASS         143  // 33 байти (32 + null)
-#define ADDR_MQTT_PUB_TOPIC    176  // 65 байт  (64 + null)
-#define ADDR_MQTT_SUB_TOPIC    241  // 65 байт  (64 + null)
-#define ADDR_MQTT_CLIENT_ID    306  // 33 байти (32 + null)
-#define ADDR_USER_TOKEN        339  // 21 байт  (20 + null) — номер телефону
-#define ADDR_DEVICE_TYPE       360  // 17 байт  (16 + null) — тип пристрою
-#define ADDR_DEVICE_VERSION    377  // 9 байт   (8 + null)  — версія протоколу
-// 386–511 — резерв
+#define ADDR_WIFI_PASS         34   // 64 байти (63 + null) ← WPA2 макс 63 символи
+#define ADDR_MQTT_SERVER       98   // 41 байт  (40 + null)
+#define ADDR_MQTT_PORT         139  // 2 байти  (uint16_t)
+#define ADDR_MQTT_USER         141  // 33 байти (32 + null)
+#define ADDR_MQTT_PASS         174  // 33 байти (32 + null)
+#define ADDR_MQTT_PUB_TOPIC    207  // 65 байт  (64 + null)
+#define ADDR_MQTT_SUB_TOPIC    272  // 65 байт  (64 + null)
+#define ADDR_MQTT_CLIENT_ID    337  // 33 байти (32 + null)
+#define ADDR_USER_TOKEN        370  // 21 байт  (20 + null) — номер телефону
+#define ADDR_DEVICE_TYPE       391  // 17 байт  (16 + null) — тип пристрою
+#define ADDR_DEVICE_VERSION    408  // 9 байт   (8 + null)  — версія протоколу
+// 417–511 — резерв (95 байт)
 
 // ─── MQTT OTA ───────────────────────────────────────────────────────────────
 #define MQTT_OTA_CHUNK_SIZE    4096              // Максимальний розмір чанка прошивки (байт)
