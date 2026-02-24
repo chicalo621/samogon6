@@ -216,6 +216,12 @@ bool valvePwmState = false;
 //  УТИЛІТИ (оголошення вперед)
 // ═══════════════════════════════════════════════════════════════════════════
 
+// ─── Enum'и оголошені тут, ДО функцій, щоб Arduino-препроцесор бачив їх
+//     при автогенерації прототипів функцій ─────────────────────────────────
+enum MenuValueType : uint8_t { TYPE_INT, TYPE_FLOAT, TYPE_BOOL };
+enum MenuSection : uint8_t { MENU_SETUP, MENU_WORK };
+enum MainMenuLevel : uint8_t { MAIN_MENU, SUB_MENU };
+
 bool isTimer(unsigned long startTime, unsigned long period);
 float readDS18TempOW2(byte addr[8], byte type_s);
 float convertDS18x2xData(byte type_s, byte data[12]);
@@ -246,9 +252,6 @@ float roundFloat(float val, uint8_t dec) {
 //  МЕНЮ (PROGMEM оптимізоване)
 // ═══════════════════════════════════════════════════════════════════════════
 
-enum MenuValueType : uint8_t { TYPE_INT, TYPE_FLOAT, TYPE_BOOL };
-enum MenuSection : uint8_t { MENU_SETUP, MENU_WORK };
-enum MainMenuLevel : uint8_t { MAIN_MENU, SUB_MENU };
 
 const char title_klapan[] PROGMEM = "Klapan/motor";
 const char title_pwmkonec[] PROGMEM = "PwmKonec";
