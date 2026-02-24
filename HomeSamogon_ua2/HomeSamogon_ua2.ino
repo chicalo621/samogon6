@@ -25,7 +25,7 @@
 #include <Wire.h>
 #include <OneWire.h>
 #include <LiquidCrystal_I2C.h>
-#include <GyverBME280.h>
+#include <SFE_BMP180.h>
 #include <EEPROM.h>
 #include <EncButton.h>
 #include <avr/pgmspace.h>
@@ -49,7 +49,7 @@
 #define UART_BUF_SIZE 64
 
 // ─── Периферія ──────────────────────────────────────────────────────────────
-GyverBME280 bmeSensor;
+SFE_BMP180 bmeSensor;
 long bmpPressure = 0;
 SoftwareSerial BtSerial(SOFT_SERIAL_RX_PIN, SOFT_SERIAL_TX_PIN);
 OneWire oneWireBus(ONE_WIRE_BUS_PIN);
@@ -558,7 +558,7 @@ void setup() {
   Wire.begin();
   delay(10);
   analogReference(EXTERNAL);
-  bmeSensor.begin();
+  bmeSensor.begin();  // SFE_BMP180 ініціалізація
   BtSerial.begin(9600);
   Serial.begin(115200);
   mainDisplay.init();
@@ -640,16 +640,22 @@ void loop() {
     }
   }
 
-  // ─── BMP280 тиск (кожні 5 сек) ─────────────────────────────────────────
+  // ─── BMP180 тиск (кожні 5 сек) ─────────────────────────────────────────
   if (isTimer(bmpSensorReadTime2, 5000)) {
     bmpSensorReadTime2 = millis();
-    tempByte = bmeSensor.readTemperature();
+    double bmpTempData, bmpPressData;
+    tempByte = bmeSensor.startTemperature();
     if (tempByte != 0) {
+      delay(tempByte);
+      tempByte = bmeSensor.getTemperature(bmpTempData);
       if (tempByte != 0) {
-        delay(10);
-        tempByte = bmeSensor.readPressure();
+        tempByte = bmeSensor.startPressure(3);
         if (tempByte != 0) {
-          bmpPressure = bmeSensor.readPressure();
+          delay(tempByte);
+          tempByte = bmeSensor.getPressure(bmpPressData, bmpTempData);
+          if (tempByte != 0) {
+            bmpPressure = (long)(bmpPressData * 100.0); // мбар → Па
+          }
         }
       }
     }
