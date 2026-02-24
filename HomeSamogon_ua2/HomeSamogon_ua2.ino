@@ -545,8 +545,8 @@ void sendDataPacket(Print &out) {
   out.print(alarmFlag2 ? '1' : '0'); out.print(',');
   // switchString8 (периферія)
   out.print(tempFlag30 ? '1' : '0');
-  // Маркер кінця
-  out.print(F(",%,"));
+  // Маркер кінця + перенос рядка
+  out.println(F(",%,"));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
