@@ -119,12 +119,12 @@ bool alarmFlag = 1;
 bool alarmFlag2 = 0;
 float alarmTempLimit = 110;
 float pressureValue = 0;
-float pwmValue1 = 777;
-float pwmValue2 = 777;
+float pwmValue1 = 777;//stop
+float pwmValue2 = 777; //start
 float pressureSensorValue = 0;
 bool pressureSensorInitialized = false;  // чи отримали перше значення від Arduino
 bool tempFlag33 = 0;
-int tempInt2 = 0;
+int tempInt2 = 0;//shim
 bool pwmCoarseFlag = 0;
 bool pwmFineFlag = 0;
 bool tempFlag12 = 0;
@@ -544,9 +544,57 @@ void sendDataPacket(Print &out) {
   // switchString2 (протікання/аварія)
   out.print(alarmFlag2 ? '1' : '0'); out.print(',');
   // switchString8 (периферія)
-  out.print(tempFlag30 ? '1' : '0');
+  out.print(tempFlag30 ? '1' : '0'); out.print(',');
+  // // температура закінчення дистиляції (cubeFinishTemp)
+   // printFloat(out, cubeFinishTemp, 1); out.print(',');
+   // // кінець дистиляції шим 
+   // out.print(pwmFinishValue, DEC); out.print(',');
+    // // період шим
+   // out.print(pwmPeriodMs, DEC); out.print(',');
   // Маркер кінця
-  out.print(F(",%,"));
+  out.print(F("%,"));
+}
+void sendDataPacketwifi(Print &out) {
+  // Контрольна сума — обчислюємо з тих самих значень, що передаємо
+  float ct1 = roundFloat(cubeTemp, 1);
+  float colt1 = roundFloat(columnTemp, 1);
+  float atm1 = roundFloat(atmPressure, 1);
+  float lowerVal = (ct1 + 3.14f) * (colt1 + atm1);
+  dtostrf(lowerVal, 0, 1, displayLowerBuf);
+
+  // Заголовок + температури
+  out.print(F("HomeSamogon.ru/4.8,"));
+  printFloat(out, columnTemp, 1); out.print(',');
+  printFloat(out, atmPressure, 1); out.print(',');
+  printFloat(out, cubeTemp, 1); out.print(',');
+  // switchString6 (авто режим)
+  out.print(tempFlag33 ? '1' : '0'); out.print(',');
+  // switchString3 (старт/стоп)
+  out.print(tempFlag12 ? '1' : '0'); out.print(',');
+  // pwmValue1 - pressureValue
+  printFloat(out, pwmValue1 - pressureValue, 1); out.print(',');
+  // pwmValue2 - pressureValue
+  printFloat(out, pwmValue2 - pressureValue, 1); out.print(',');
+  // tempInt2 (ШІМ)
+  out.print(tempInt2, DEC); out.print(',');
+  // alarmTempLimit
+  printFloat(out, alarmTempLimit, 2); out.print(',');
+  // контрольна сума
+  out.print(displayLowerBuf); out.print(',');
+  // alarmTemp
+  printFloat(out, alarmTemp, 1); out.print(',');
+  // switchString2 (протікання/аварія)
+  out.print(alarmFlag2 ? '1' : '0'); out.print(',');
+  // switchString8 (периферія)
+  out.print(tempFlag30 ? '1' : '0'); out.print(',');
+  // температура закінчення дистиляції (cubeFinishTemp)
+   printFloat(out, cubeFinishTemp, 1); out.print(',');
+   // кінець дистиляції шим 
+   out.print(pwmFinishValue, DEC); out.print(',');
+    // період шим
+   out.print(pwmPeriodMs, DEC); out.print(',');
+  //Маркер кінця
+  out.print(F("%,"));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -815,7 +863,7 @@ void loop() {
   // ─── Передача в Serial (кожні 2 сек) ──────────────────────────────────
   if (columnSensorFlag) {
     if (isTimer(stou2, 2000)) {
-      sendDataPacket(Serial);
+      sendDataPacketwifi(Serial);
       stou2 = millis();
     }
   } else {
