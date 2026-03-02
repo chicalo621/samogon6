@@ -1,21 +1,46 @@
 # Samogon — ESP8266 Serial ↔ MQTT Gateway
 
-Мост Serial ↔ MQTT на базі ESP8266 з веб-інтерфейсом налаштувань.
+Міст Serial ↔ MQTT на базі ESP8266 із сучасним веб-інтерфейсом, автооновленням IP, надійним керуванням WiFi-режимами та оновленням прошивки через MQTT.
+
+---
 
 ## 📚 Документація
 
-- **[ARDUINO_IDE_SETUP.md](ARDUINO_IDE_SETUP.md)** — Детальна інструкція з налаштування Arduino IDE
-- **[EXAMPLES.md](EXAMPLES.md)** — Приклади використання та інтеграції з Home Assistant, Node-RED
-- **[README.md](README.md)** — Цей файл (огляд проекту)
+- **[ARDUINO_IDE_SETUP.md](ARDUINO_IDE_SETUP.md)** — покрокова інструкція для Arduino IDE
+- **[EXAMPLES.md](EXAMPLES.md)** — приклади інтеграції з Home Assistant, Node-RED
+- **[README.md](README.md)** — цей огляд проекту
+
+---
 
 ## Можливості
 
-- **WiFi**: підключення до роутера (STA) + завжди активна точка доступу (AP) для налаштування
-- **Веб-інтерфейс**: головна сторінка зі статусом, сторінка налаштувань WiFi/MQTT, сторінка ручної відправки
-- **Serial → MQTT**: прийом даних з UART, парсинг `key=value` пар, публікація кожного значення в окремий MQTT топік
-- **MQTT → Serial**: підписка на командний топік, пересилка отриманих повідомлень в Serial
-- **OTA через MQTT**: оновлення прошивки по мережі через MQTT брокер (бінарні чанки)
-- **EEPROM**: збереження всіх налаштувань
+- **WiFi:**  
+  - Підключення до роутера (STA)  
+  - Перехід у точку доступу (AP/hotspot) для налаштування
+  - **Захист:** перехід в AP можливий лише якщо поле SSID порожнє (уникає втрати доступу)
+  - **Автоматичне оновлення IP:** На сторінці налаштувань WiFi IP ESP (STA) оновлюється “на льоту” без перезавантаження сторінки
+  - **Скан WiFi:** Кнопка “Сканувати” з автоповтором до 3 разів, Unicode-friendly, вибір зі списку з автоматичним обрізанням пробілів
+- **Веб-інтерфейс:**  
+  - Головна сторінка статусу: відображає підключення, MQTT, серійні дані, аптайм  
+  - Сторінка налаштувань із вкладками WiFi/MQTT/System  
+  - Сторінка відправки MQTT та Serial команд  
+  - OTA-сторінка для оновлення прошивки через браузер
+- **Serial → MQTT:**  
+  - Прийом key=value даних із UART, автоматичний парсинг та публікація кожної пари у свій топік MQTT  
+  - Весь рядок також публікується як raw
+- **MQTT → Serial:**  
+  - Підписка на топік, надходження команд і пересилка у Serial
+- **OTA через MQTT:**  
+  - Оновлення прошивки бінарними чанками через MQTT-брокер, статус та прогрес у MQTT
+- **EEPROM:**  
+  - Збереження всіх налаштувань WiFi & MQTT
+- **Захист від помилок користувача:**  
+  - Обрізка пробілів у SSID  
+  - Якщо у WiFi обрано режим “hotspot (AP)” та SSID не очищено, режим не вмикається − це захист від блокування пристрою
+- **Стабільний reconnect WiFi STA:**  
+  - Періодичний перепідключення до роутера за таймером
+
+---
 
 ## Формат Serial
 
@@ -24,25 +49,25 @@
 key1=value1|key2=value2|key3=value3\r\n
 ```
 Кожна пара публікується в `{pub_topic}/{key}` з payload `{value}`.  
-Також весь рядок публікується в `{pub_topic}/raw`.
+Весь рядок - у `{pub_topic}/raw`.
 
 **Відправка (MQTT → Serial):**  
-Повідомлення з топіка `{sub_topic}/power` з payload `500` → відправляється `power=500\r\n` в Serial.
+З топіка `{sub_topic}/power` із payload `500` відправляється `power=500\r\n` в Serial.
+
+---
 
 ## OTA оновлення через MQTT
 
-Прошивка оновлюється через MQTT брокер бінарними чанками:
-
-| Крок | Топік | Payload |
-|---|---|---|
-| 1. Початок | `{sub_topic}/ota/begin` | розмір прошивки в байтах (текстом) |
-| 2. Дані | `{sub_topic}/ota/data` | бінарний чанк (до 4096 байт) |
-| 3. Завершення | `{sub_topic}/ota/end` | будь-який або порожній |
-| Скасування | `{sub_topic}/ota/abort` | будь-який або порожній |
+| Крок         | Топік                  | Payload                   |
+|--------------|------------------------|---------------------------|
+| 1. Початок   | `{sub_topic}/ota/begin`| розмір прошивки (текстом) |
+| 2. Дані      | `{sub_topic}/ota/data` | бінарний чанк (≤4096 байт)|
+| 3. Завершення| `{sub_topic}/ota/end`  | будь-який/порожній        |
+| Скасування   | `{sub_topic}/ota/abort`| будь-який/порожній        |
 
 **Статус оновлення:**
-- `{pub_topic}/ota/status` — стан: `started`, `success, rebooting...`, `error: ...`, `aborted`
-- `{pub_topic}/ota/progress` — прогрес у відсотках (0–100)
+- `{pub_topic}/ota/status` — `started`, `success, rebooting...`, `error: ...`, `aborted`
+- `{pub_topic}/ota/progress` — % завершеності (0–100)
 
 **Приклад (Python):**
 ```python
@@ -60,125 +85,156 @@ client.connect(broker)
 with open(firmware_path, "rb") as f:
     data = f.read()
 
-# 1. Відправити розмір
 client.publish(f"{sub_topic}/ota/begin", str(len(data)))
 time.sleep(1)
 
-# 2. Відправити чанки
 for i in range(0, len(data), chunk_size):
     chunk = data[i:i+chunk_size]
     client.publish(f"{sub_topic}/ota/data", chunk)
     time.sleep(0.1)
 
-# 3. Завершити
 time.sleep(1)
 client.publish(f"{sub_topic}/ota/end", "done")
 ```
+
+---
 
 ## Встановлення
 
 ### 1. Встановити бібліотеки
 
-#### Через Arduino Library Manager:
+**Через Arduino Library Manager:**
 
-В Arduino IDE: **Sketch → Include Library → Manage Libraries...**
+- В меню Arduino IDE:  
+  **Sketch → Include Library → Manage Libraries...**  
+  → встановити **PubSubClient** від Nick O'Leary
 
-Встановіть:
-- **PubSubClient** від Nick O'Leary
-
-#### Ручне встановлення (для ESP Async Web Server):
-
-Бібліотеки **ESPAsyncWebServer** та **ESPAsyncTCP** потрібно встановити вручну з GitHub:
-
-1. Завантажте та розпакуйте:
+**Для ESP Async Web Server вручну:**
+1. Завантажити:
    - [ESPAsyncWebServer](https://github.com/me-no-dev/ESPAsyncWebServer/archive/master.zip)
    - [ESPAsyncTCP](https://github.com/me-no-dev/ESPAsyncTCP/archive/master.zip)
-
-2. Скопіюйте розпаковані папки в:
-   - Windows: `C:\Users\<ім'я користувача>\Documents\Arduino\libraries\`
-   - Linux: `~/Arduino/libraries/`
-   - macOS: `~/Documents/Arduino/libraries/`
-
-3. Перейменуйте папки:
+2. Розпакувати у `.../Arduino/libraries/`
+3. Перейменувати папки:
    - `ESPAsyncWebServer-master` → `ESPAsyncWebServer`
    - `ESPAsyncTCP-master` → `ESPAsyncTCP`
-
-4. Перезапустіть Arduino IDE
+4. Перезапустити Arduino IDE
 
 ### 2. Встановити Board Package
 
-В Arduino IDE: **File → Preferences → Additional Board Manager URLs:**
+**Arduino IDE → File → Preferences → Additional Board Manager URLs:**
 ```
 https://arduino.esp8266.com/stable/package_esp8266com_index.json
 ```
-Потім: **Tools → Board → Boards Manager** → встановити **esp8266** (версія 3.0.0 або новіша)
+**Tools → Board → Boards Manager** → встановити **esp8266** (версія 3.0.0+)
 
 ### 3. Компіляція
 
 1. Відкрити `samogon.ino` в Arduino IDE
-2. **Tools → Board:** Generic ESP8266 Module (або NodeMCU, Wemos D1 mini тощо)
-3. **Tools → Flash Size:** 4MB (FS:2MB, OTA:~1019KB) або відповідно до вашої плати
+2. Tools → Board: Generic ESP8266 Module (або NodeMCU/Wemos D1 mini)
+3. Tools → Flash Size: 4MB (FS:2MB, OTA:~1019KB) або під свою плату
 4. Upload
+
+---
 
 ## Веб-інтерфейс
 
-| Сторінка | URL |
-|---|---|
-| Головна (статус) | `http://192.168.4.1/` (AP) або `http://<IP>/` (STA) |
-| Налаштування | `http://<IP>/settings` |
-| Відправка команд | `http://<IP>/send` |
+| Сторінка         | URL                                      |
+|------------------|------------------------------------------|
+| Головна (статус) | `http://192.168.4.1/` (AP) / `http://<IP>/` (STA) |
+| Налаштування     | `http://<IP>/settings`                   |
+| Відправка команд | `http://<IP>/send`                       |
+| OTA оновлення    | `http://<IP>/update`                     |
+
+---
 
 ## Налаштування за замовчуванням
 
-| Параметр | Значення |
-|---|---|
-| AP SSID | `MQTT_Bridge` |
-| AP Пароль | `12345678` |
-| AP IP | `192.168.4.1` |
-| Serial | 9600 бод |
-| MQTT порт | 1883 |
+| Параметр   | Значення         |
+|------------|------------------|
+| AP SSID    | `MQTT_Bridge`    |
+| AP Пароль  | `12345678`       |
+| AP IP      | `192.168.4.1`    |
+| Serial     | 9600 бод         |
+| MQTT порт  | 1883             |
 
-## Структура файлів
+---
+
+## Структура проєкту
 
 ```
 samogon/
 ├── samogon.ino        — Головний файл, setup/loop, EEPROM
 ├── config.h           — Конфігурація, адреси EEPROM, дефайни
 ├── wifi_utils.ino     — WiFi STA+AP, підключення, реконнект
-├── web_server.ino     — Веб-сервер, маршрути API
+├── web_server.ino     — Веб-сервер, всі API-маршрути
 ├── web_pages.h        — HTML сторінки (PROGMEM)
-├── mqtt_client.ino    — MQTT клієнт, публікація, підписка
+├── mqtt_client.ino    — MQTT клієнт
 ├── serial_comm.ino    — Serial прийом, парсинг, відправка
-├── OTA.ino            — OTA оновлення через MQTT
-└── install_libraries.bat — Скрипт встановлення бібліотек
+├── OTA.ino            — OTA через MQTT
+└── install_libraries.bat — Автоматичне встановлення бібліотек
 ```
+
+---
 
 ## API endpoints
 
-| Endpoint | Метод | Опис |
-|---|---|---|
-| `/get_status` | GET | JSON зі статусом WiFi, MQTT, Serial |
-| `/save_wifi` | POST | Збереження WiFi налаштувань |
-| `/save_mqtt` | POST | Збереження MQTT налаштувань |
-| `/scan_wifi` | GET | Сканування доступних WiFi мереж |
-| `/api/serial_send?cmd=...` | GET | Відправити команду в Serial |
-| `/api/mqtt_pub?topic=...&payload=...` | GET | Опублікувати в MQTT |
-| `/restart` | GET | Перезавантаження |
-| `/factory_reset` | GET | Скидання всіх налаштувань |
+| Endpoint                    | Метод | Опис                                 |
+|-----------------------------|-------|---------------------------------------|
+| `/get_status`               | GET   | JSON: статус WiFi, MQTT, Serial       |
+| `/save_wifi`                | POST  | Зберегти налаштування WiFi           |
+| `/save_mqtt`                | POST  | Зберегти MQTT налаштування           |
+| `/scan_wifi`                | GET   | Сканування усіх доступних WiFi мереж |
+| `/api/serial_send?cmd=...`  | GET   | Надіслати команду у Serial           |
+| `/api/mqtt_pub?topic=...&payload=...`| GET| Опублікувати у MQTT                  |
+| `/restart`                  | GET   | Перезапуск ESP                       |
+| `/factory_reset`            | GET   | Скидання всіх налаштувань            |
+
+---
 
 ## Карта EEPROM (512 байт)
 
-| Адреса | Розмір | Поле |
-|---|---|---|
-| 0 | 1 | Маркер збережених налаштувань (0xAB) |
-| 1 | 33 | WiFi SSID |
-| 34 | 33 | WiFi Password |
-| 67 | 41 | MQTT Server |
-| 108 | 2 | MQTT Port |
-| 110 | 33 | MQTT User |
-| 143 | 33 | MQTT Password |
-| 176 | 65 | MQTT Publish Topic |
-| 241 | 65 | MQTT Subscribe Topic |
-| 306 | 33 | MQTT Client ID |
-| 339–511 | — | Резерв |
+| Адреса | Розмір | Поле               |
+|--------|--------|--------------------|
+| 0      | 1      | Маркер (0xAB)      |
+| 1      | 33     | WiFi SSID          |
+| 34     | 33     | WiFi Password      |
+| 67     | 41     | MQTT Server        |
+| 108    | 2      | MQTT Port          |
+| 110    | 33     | MQTT User          |
+| 143    | 33     | MQTT Password      |
+| 176    | 65     | MQTT Publish Topic |
+| 241    | 65     | MQTT Subscribe Top.|
+| 306    | 33     | MQTT Client ID     |
+| 339–511| -      | Резерв             |
 
+---
+
+## Основні зміни та новації 2026
+
+- **Захист від неправильного налаштування WiFi:** Перехід у AP лише за порожнього SSID
+- **Оновлення IP на сторінці налаштувань STA** (автоматично через JS)
+- **Стабільна обрізка SSID** (завжди trim і при виборі, і при сабміті, і в бекенді)
+- **Покращене сканування WiFi:** Повтор сканування до 3 разів для reliability
+- **Веб-розділення сторінок:** Всі функції винесені у окремі вкладки
+- **OTA через MQTT та Web** працюють паралельно
+- **Автоматичний reconnect STA із інтервалом** не впливає на роботу точок доступу
+- Всі JS-фрагменти у web_pages.h виправлені, дублікати та баги прибрані
+
+---
+
+## TODO
+
+- Автоматичне вимкнення AP через 10 хв (roadmap)
+- Графіки, автоматизація, розширена інтеграція з Home Assistant
+- Захист вебінтерфейсу паролем
+
+---
+
+## Ліцензія та авторство
+
+Автор: [chicalo621](https://github.com/chicalo621)  
+Зворотній зв'язок та баги — через [issues](https://github.com/chicalo621/samogon6/issues)
+
+---
+
+**Всі актуальні можливості, логіка та захист відповідають вихідному коду на березень 2026 року.**
