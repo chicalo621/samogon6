@@ -3,7 +3,6 @@
 //  Підключення до WiFi, точка доступу (тільки при відсутності STA), реконнект
 // ============================================================================
 #include "config.h"
-
 // ─── Запуск точки доступу (AP) ──────────────────────────────────────────────
 void startAP() {
 #ifdef ENABLE_WIFI
@@ -46,14 +45,17 @@ void ConnectWIFI(String SSID, String Pass) {
   }
   Serial1.println();
 
-  if (WiFi.status() == WL_CONNECTED) {
+    if (WiFi.status() == WL_CONNECTED) {
     // STA підключено — AP поки залишається (loopWIFI вимкне її через 20с)
     localIP = WiFi.localIP().toString();
+    gatewayIP = WiFi.gatewayIP().toString();
     Serial1.println("[WiFi] Підключено. IP: " + localIP);
+    Serial1.println("[WiFi] Gateway: " + gatewayIP);
     Serial1.println("[WiFi] RSSI: " + String(WiFi.RSSI()) + " dBm");
-  } else {
+ } else {
     // STA не підключено — вмикаємо AP для налаштування
     Serial1.println("[WiFi] Не вдалося підключитися.");
+    gatewayIP = "";
     WiFi.mode(WIFI_AP_STA);  // AP + STA (щоб STA продовжував спроби)
     startAP();
   }
@@ -76,10 +78,11 @@ void hotspotSetup() {
   Serial1.println("[WiFi] Примусовий перехід у режим AP...");
   WiFi.disconnect(false);
   WiFi.mode(WIFI_AP);
+  savedSSID = "";  // 👈 ДОДАЙТЕ
+  savedPass = "";  // 👈 ДОДАЙТЕ
   startAP();
 #endif
 }
-
 // ─── Ініціалізація WiFi при старті ──────────────────────────────────────────
 void initWiFi() {
 #ifdef ENABLE_WIFI
@@ -113,8 +116,8 @@ void loopWIFI() {
     } else {
       // З'єднання є — вимикаємо AP якщо була активна
       if (hotspotMode) {
-        stopAP();
-        WiFi.mode(WIFI_STA);  // Повертаємось до чистого STA
+        //stopAP();
+       // WiFi.mode(WIFI_STA);  // Повертаємось до чистого STA
       }
       wifiRSSI = WiFi.RSSI();
       localIP = WiFi.localIP().toString();

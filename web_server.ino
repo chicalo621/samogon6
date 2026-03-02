@@ -53,7 +53,7 @@ void setupWebServer() {
   server.on("/get_status", HTTP_GET, [](AsyncWebServerRequest *request) {
     String json = "{";
     json += "\"wifi_connected\":" + String(WiFi.status() == WL_CONNECTED ? "true" : "false") + ",";
-    json += "\"wifi_ip\":\"" + (WiFi.status() == WL_CONNECTED ? WiFi.localIP().toString() : WiFi.softAPIP().toString()) + "\",";
+    json += "\"wifi_ip\":\"" + WiFi.localIP().toString() + "\",";
     json += "\"wifi_rssi\":" + String(WiFi.status() == WL_CONNECTED ? WiFi.RSSI() : 0) + ",";
     json += "\"wifi_ssid\":\"" + savedSSID + "\",";
     json += "\"hotspot\":" + String(hotspotMode ? "true" : "false") + ",";
@@ -97,6 +97,7 @@ void setupWebServer() {
     html.replace("%PASS%", savedPass);
     html.replace("%s_router%", !hotspotMode ? "checked" : "");
     html.replace("%s_hotspot%", hotspotMode ? "checked" : "");
+    html.replace("%GATEWAY_IP%", gatewayIP);
 
     // MQTT placeholders
     html.replace("%MQTT_SRV%", mqttServer);
@@ -112,25 +113,49 @@ void setupWebServer() {
     request->send(200, "text/html", html);
   });
 
-  // ─── Збереження WiFi ──────────────────────────────────────────────────────
+  // ─── Збереження WiFi ────────────────���─────────────────────────────────────
   server.on("/save_wifi", HTTP_POST, [](AsyncWebServerRequest *request) {
-    if (request->hasParam("mode", true)) {
-      String mode = request->getParam("mode", true)->value();
-      if (mode == "hotspot") {
-        request->send(200, "text/plain", "OK");
-        hotspotSetup();
-      } else {
-        savedSSID = request->hasParam("ssid", true) ? request->getParam("ssid", true)->value() : "";
-        savedPass = request->hasParam("pass", true) ? request->getParam("pass", true)->value() : "";
-        request->send(200, "text/plain", "OK");
-        settingsNeedSave = true;
-        wifiNeedsReconnect = true;
-      }
-    } else {
+    String mode = "";
+    String ssid = "";
+    String pass = "";
+    
+    // 👈 ШУКАЄМО БЕЗ ТРЕТЬОГО АРГУМЕНТУ (true) - по замовчуванню параметри в BODY
+    if (request->hasParam("mode")) {
+      mode = request->getParam("mode")->value();
+    }
+    if (request->hasParam("ssid")) {
+      ssid = request->getParam("ssid")->value();
+    }
+    if (request->hasParam("pass")) {
+      pass = request->getParam("pass")->value();
+    }
+    
+    // Перевіра чи є mode
+    if (mode.length() == 0) {
       request->send(400, "text/plain", "Missing mode");
+      Serial1.println("[WiFi] POST /save_wifi - Missing mode");
+      return;
+    }
+    
+    // ОДРАЗУ відправити відповідь
+    request->send(200, "text/plain", "OK");
+    Serial1.println("[WiFi] POST /save_wifi - mode: " + mode + ", ssid: " + ssid);
+    
+    // ПОТІМ виконати роботу
+    if (mode == "hotspot") {
+      savedSSID = "";
+      savedPass = "";
+      settingsNeedSave = true;
+      saveSettings();
+      hotspotSetup();
+    } else if (mode == "router") {
+      savedSSID = ssid;
+      savedPass = pass;
+      settingsNeedSave = true;
+      saveSettings();
+      WiFiSetup(savedSSID, savedPass);
     }
   });
-
   // ─── Збереження MQTT ──────────────────────────────────────────────────────
   server.on("/save_mqtt", HTTP_POST, [](AsyncWebServerRequest *request) {
     if (request->hasParam("mqtt_server", true))

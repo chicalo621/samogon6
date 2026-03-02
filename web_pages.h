@@ -208,8 +208,14 @@ evt.currentTarget.className+=' active';
 }
 function saveWifi(e){
 e.preventDefault();
-var f=new FormData(document.getElementById('wifiForm'));
-fetch('/save_wifi',{method:'POST',body:new URLSearchParams(f)}).then(r=>r.text()).then(t=>{
+var mode = document.querySelector('input[name="mode"]:checked').value;
+var ssid = document.getElementById('ssid').value;
+var pass = document.querySelector('input[name="pass"]').value;
+var data = new URLSearchParams();
+data.append('mode', mode);
+data.append('ssid', ssid);
+data.append('pass', pass);
+fetch('/save_wifi',{method:'POST',body:data}).then(r=>r.text()).then(t=>{
 showMsg('wmsg','Налаштування збережено!','ok');
 }).catch(err=>showMsg('wmsg','Помилка: '+err,'err'));
 }
@@ -294,8 +300,15 @@ updateTopicPreview();};
 <select id="ssid_list" onchange="selectSSID()" style="display:none;width:100%;padding:8px;margin:5px 0;background:#333;color:#eee;border:1px solid #444;border-radius:5px"></select>
 <button type="button" id="scanBtn" class="b" onclick="scanWifi()" style="font-size:.85em;padding:6px 12px;margin:3px 0">🔍 Сканувати</button>
 
-<label>Пароль:</label>
-<input type="text" name="pass" value="%PASS%">
+<label>Пароль WiFi:</label>
+<input type="password" id="pass" name="pass" value="%PASS%" placeholder="Пароль">
+<br><br>
+
+<label style="color:#4CAF50">IP адреса роутера (Gateway):</label>
+<div style="padding:10px;background:#333;border-radius:5px;margin:8px 0;color:#2ecc71;font-family:monospace">
+%GATEWAY_IP%
+</div>
+<br>
 
 <div id="wmsg" class="msg"></div>
 <div style="margin-top:15px"><button type="submit" class="b">💾 Зберегти WiFi</button></div>
