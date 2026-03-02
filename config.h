@@ -18,7 +18,7 @@
 #define AP_PASS                "12345678"
 
 #define WIFI_CONNECT_TIMEOUT   10000             // Таймаут підключення (мс)
-#define WIFI_RECONNECT_INTERVAL 20000            // Інтервал перепідключення (мс)
+#define WIFI_RECONNECT_INTERVAL 600000           // Інтервал перепідключення (мс)
 
 // ─── Ідентифікація пристрою (для побудови MQTT топіків) ──────────────────────
 #define DEVICE_VERSION         "1"               // Версія протоколу

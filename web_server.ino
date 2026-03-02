@@ -95,6 +95,7 @@ void setupWebServer() {
     // WiFi placeholders
     html.replace("%SSID%", savedSSID);
     html.replace("%PASS%", savedPass);
+    html.replace("%GATEWAY_IP%", gatewayIP.length() > 0 ? gatewayIP : "--");
     html.replace("%s_router%", !hotspotMode ? "checked" : "");
     html.replace("%s_hotspot%", hotspotMode ? "checked" : "");
 

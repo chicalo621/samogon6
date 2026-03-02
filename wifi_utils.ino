@@ -49,6 +49,7 @@ void ConnectWIFI(String SSID, String Pass) {
   if (WiFi.status() == WL_CONNECTED) {
     // STA підключено — AP поки залишається (loopWIFI вимкне її через 20с)
     localIP = WiFi.localIP().toString();
+    gatewayIP = WiFi.gatewayIP().toString();
     Serial1.println("[WiFi] Підключено. IP: " + localIP);
     Serial1.println("[WiFi] RSSI: " + String(WiFi.RSSI()) + " dBm");
   } else {
@@ -118,6 +119,7 @@ void loopWIFI() {
       }
       wifiRSSI = WiFi.RSSI();
       localIP = WiFi.localIP().toString();
+      gatewayIP = WiFi.gatewayIP().toString();
     }
   }
 #endif
