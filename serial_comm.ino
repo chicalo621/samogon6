@@ -43,15 +43,18 @@ const char* field_names[MAX_SERIAL_KEYS] = {
   "cubeTemp",            // 3: температура куба
   "switchString6",       // 4: автоматичний режим (0/1)
   "switchString3",       // 5: стан старт/стоп (0/1)
-  "pwmValue1Pressure",   // 6: pwmValue1 - pressureValue
-  "pwmValue2Pressure",   // 7: pwmValue2 - pressureValue
+  "pwmValue1Pressure",   // 6: температура старту
+  "pwmValue2Pressure",   // 7: температура стопу
   "tempInt2",            // 8: значення ШІМ (0-1023)
   "alarmTempLimit",      // 9: межа аварійної температури
   "displayLowerText",    // 10: контрольна сума (нижній рядок)
   "alarmTemp",           // 11: температура аварійного датчика (ТСА)
   "switchString2",       // 12: протікання/перегрів (0/1)
   "switchString8",       // 13: стан периферії (0/1)
-  "endMark"              // 14: "%" — маркер кінця пакету
+   "cubeFinishTemp",	// 14: закінчення дистиляції по кубі
+   "pwmFinishValue",	// 15: закінчення дистиляції % шим(0-100)
+   "pwmPeriodMs",		// 16: період в мілісекундах клапана
+  "endMark"              // 17: "%" — маркер кінця пакету
 };
 
 // ─── Парсинг пакету від Arduino (кома-розділений) ────────────────────────────
@@ -127,13 +130,27 @@ void serialLoop() {
 }
 
 // ─── Відправка одиночної команди до Arduino ─────────────────────────────────
+// water  			30 pub стан периферії вода (0/1)
+// shim    			31 pub значення ШІМ (0-1023)
+// PUBalarmLimit    32 pub сигналізація по кубі
+// autoEnd    		33 pub дельта стоп
+// autoStart    	34 pub дельта start
+// autoMode	    	35 pub режим авто ручний
+// start	    	36 pub зміна дельта start
+// stop	    		37 pub зміна дельта стоп
+// display			38 pub Дисплей центральна позиція
+// Periodkl		39 pub Період клапана
+// pwmFinish	40 pub дистиляція до % відкриття клапана
+// cubeFinish	41 pub дистиляція до темперари в кубі
+
+
 // Команди відправляються ПО ОДНІЙ у рідному форматі.
 // MQTT топік .../cmd/{key} з payload → формує відповідну команду
 void setArduinoCommand(String key, String value) {
   value.trim();
   String cmd = "";
 
-  // ── Вода (клапан) ──
+  // ── Вода (клапан) 
   // MQTT: .../cmd/water   payload: "1" або "0"
   // Serial: ^1$ або ^0$
   if (key == "water") {
@@ -148,9 +165,9 @@ void setArduinoCommand(String key, String value) {
   }
 
   // ── Температура сигналізації ──
-  // MQTT: .../cmd/alarmLimit   payload: "110.00"
+  // MQTT: .../cmd/PUBalarmLimit   payload: "110.00"
   // Serial: @110.00!
-  else if (key == "alarmLimit") {
+  else if (key == "PUBalarmLimit") {
     cmd = "@" + value + "!";
   }
 
@@ -197,6 +214,21 @@ void setArduinoCommand(String key, String value) {
     cmd = "%" + value + "~";
   }
 
+  // ── НОВЕ: прийомні налаштування (щоб decodeUartCommand на Arduino міг їх отримати)
+  // Відправляємо маркер + значення (термінатор '!' для сумісності з поточним стилем)
+  // ':' -> Periodkl (ms)
+  // ';' -> pwmFinish (0..100)
+  // '|' -> cubeFinish (float)
+  else if (key == "Periodkl") {
+    cmd = ":" + value + "!";
+  }
+  else if (key == "pwmFinish") {
+    cmd = ";" + value + "!";
+  }
+  else if (key == "cubeFinish") {
+    cmd = "|" + value + "!";
+  }
+
   // ── Raw команда (прямий формат Arduino) ──
   // MQTT: .../cmd/raw   payload: "^1$" або будь-яка інша
   else if (key == "raw") {
@@ -215,7 +247,6 @@ void setArduinoCommand(String key, String value) {
     Serial1.println("[CMD] TX → " + cmd);
   }
 }
-
 // ─── Відправка команди (виклик з mqtt_client / web_server) ──────────────────
 // Формат "key=value" → розбирає і відправляє окрему команду
 // Інакше → raw відправка

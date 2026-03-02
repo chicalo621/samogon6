@@ -289,7 +289,7 @@ MenuItem menuItems[MENU_ITEMS_COUNT] = {
   { 3, &columnPeripheralSwitchTemp, TYPE_FLOAT, 1, 30, 100, nullptr, MENU_SETUP },
   { 4, &alarmTempLimit, TYPE_FLOAT, 1, 60, 120, nullptr, MENU_SETUP },
   { 5, &displayMiddleMode, TYPE_BOOL, 1, 0, 1, nullptr, MENU_SETUP },
-  { 6, &pwmPeriodMs, TYPE_INT, 250, 1000, 8000, nullptr, MENU_SETUP },
+  { 6, &pwmPeriodMs, TYPE_INT, 250, 1000, 10000, nullptr, MENU_SETUP },
   { 7, &tempFlag29, TYPE_BOOL, 1, 0, 1, nullptr, MENU_WORK },
   { 8, &tempInt2, TYPE_INT, 1, 0, 1000, nullptr, MENU_WORK }
 };
@@ -451,6 +451,8 @@ void readByteFromUART(byte data, int port) {
       uartBuf100[uartBuf100Len] = '\0';
     }
   }
+  Serial.println(uartBuf100[uartBuf100Len] );
+  //Serial.println(rvfu1Data); // Serial.println(_RVFU1Data);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -504,10 +506,37 @@ void decodeUartCommand(const char* cmd) {
     tempFlag29 = triggerFlag2;
   }
 
-  // %value~ → displayMiddleMode (центральна позиція дисплея)
-  // Оригінал не обробляє %, але зберігаємо на майбутнє
-}
+  // --- НОВЕ: прийом налаштувань через одиночні символи-маркери ---
+  // :value -> pwmPeriodMs (int, ms). Діапазон 100..8000
+  p = strchr(cmd, ':');
+  if (p) {
+    int v = atoi(p + 1);
+    if (v < 100) v = 100;
+    if (v > 10000) v = 10000;
+    pwmPeriodMs = v;
+  }
 
+  // ;value -> pwmFinishValue (int 0..100)
+  p = strchr(cmd, ';');
+  if (p) {
+    int v = atoi(p + 1);
+    if (v < 0) v = 0;
+    if (v > 100) v = 100;
+    pwmFinishValue = v;
+  }
+
+  // |value -> cubeFinishTemp (float). Обмеження 30.0..150.0
+  p = strchr(cmd, '|');
+  if (p) {
+    float f = atof(p + 1);
+    if (f < 30.0) f = 30.0;
+    if (f > 150.0) f = 150.0;
+    cubeFinishTemp = f;
+  }
+
+  // %value~ → displayMiddleMode (центральна позиція дисплея)
+  // Оригінал не обробляє %, залишено як раніше
+}
 // ═══════════════════════════════════════════════════════════════════════════
 //  ПЕРЕДАЧА UART ПАКЕТУ (Print напряму, без String конкатенації)
 // ═══════════════════════════════════════════════════════════════════════════
@@ -594,7 +623,7 @@ void sendDataPacketwifi(Print &out) {
     // період шим
    out.print(pwmPeriodMs, DEC); out.print(',');
   //Маркер кінця
-  out.print(F("%,"));
+  out.println(F("%,"));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
