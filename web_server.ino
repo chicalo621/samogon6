@@ -95,9 +95,10 @@ void setupWebServer() {
     // WiFi placeholders
     html.replace("%SSID%", savedSSID);
     html.replace("%PASS%", savedPass);
-    html.replace("%s_router%", !hotspotMode ? "checked" : "");
-    html.replace("%s_hotspot%", hotspotMode ? "checked" : "");
-    html.replace("%GATEWAY_IP%", gatewayIP);
+   const bool preferRouter = (savedSSID.length() > 0);
+html.replace("%s_router%", preferRouter ? "checked" : "");
+html.replace("%s_hotspot%", preferRouter ? "" : "checked");
+   html.replace("%STA_IP%", WiFi.localIP().toString());
 
     // MQTT placeholders
     html.replace("%MQTT_SRV%", mqttServer);
@@ -118,18 +119,18 @@ void setupWebServer() {
     String mode = "";
     String ssid = "";
     String pass = "";
-    
+    Serial.println("[save_wifi] handler called");
     // 👈 ШУКАЄМО БЕЗ ТРЕТЬОГО АРГУМЕНТУ (true) - по замовчуванню параметри в BODY
-    if (request->hasParam("mode")) {
-      mode = request->getParam("mode")->value();
-    }
-    if (request->hasParam("ssid")) {
-      ssid = request->getParam("ssid")->value();
-    }
-    if (request->hasParam("pass")) {
-      pass = request->getParam("pass")->value();
-    }
-    
+   if (request->hasParam("mode", true)) {
+  mode = request->getParam("mode", true)->value();
+}
+if (request->hasParam("ssid", true)) {
+  ssid = request->getParam("ssid", true)->value();
+}
+if (request->hasParam("pass", true)) {
+  pass = request->getParam("pass", true)->value();
+}
+      Serial.println("[save_wifi] mode=" + mode + " ssid='" + ssid + "' pass_len=" + String(pass.length()));
     // Перевіра чи є mode
     if (mode.length() == 0) {
       request->send(400, "text/plain", "Missing mode");
@@ -143,18 +144,29 @@ void setupWebServer() {
     
     // ПОТІМ виконати роботу
     if (mode == "hotspot") {
-      savedSSID = "";
-      savedPass = "";
-      settingsNeedSave = true;
-      saveSettings();
-      hotspotSetup();
-    } else if (mode == "router") {
-      savedSSID = ssid;
-      savedPass = pass;
-      settingsNeedSave = true;
-      saveSettings();
-      WiFiSetup(savedSSID, savedPass);
-    }
+  // ЗАХИСТ: якщо SSID заповнений, значить це майже напевно помилковий mode=hotspot
+  if (ssid.length() > 0) {
+    Serial.println("[save_wifi] WARNING: mode=hotspot but SSID not empty -> refusing to clear");
+    return;
+  }
+
+  savedSSID = "";
+  savedPass = "";
+  settingsNeedSave = true;
+  saveSettings();
+  hotspotSetup();
+} else if (mode == "router") {
+  savedSSID = ssid;
+  savedPass = pass;
+
+  // зберігаємо одразу
+  saveSettings();
+
+  // підключення НЕ тут, а в loop()
+  wifiNeedsReconnect = true;
+
+  Serial.println("[save_wifi] scheduled wifi reconnect in loop()");
+}
   });
   // ─── Збереження MQTT ──────────────────────────────────────────────────────
   server.on("/save_mqtt", HTTP_POST, [](AsyncWebServerRequest *request) {

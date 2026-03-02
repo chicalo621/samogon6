@@ -304,9 +304,9 @@ updateTopicPreview();};
 <input type="password" id="pass" name="pass" value="%PASS%" placeholder="Пароль">
 <br><br>
 
-<label style="color:#4CAF50">IP адреса роутера (Gateway):</label>
+<label style="color:#4CAF50">IP ESP (STA):</label>
 <div style="padding:10px;background:#333;border-radius:5px;margin:8px 0;color:#2ecc71;font-family:monospace">
-%GATEWAY_IP%
+%STA_IP%
 </div>
 <br>
 
