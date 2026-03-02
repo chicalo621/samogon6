@@ -22,6 +22,7 @@ String mqttPubTopic, mqttSubTopic;
 String userToken;                    // Номер телефону (USER_TOKEN)
 String deviceType;                   // Тип пристрою (редагується через веб)
 String deviceVersion;                // Версія протоколу (редагується через веб)
+String gatewayIP = "";
 uint16_t mqttPort = DEFAULT_MQTT_PORT;
 bool mqttConnected = false;
 volatile bool mqttNeedsReconnect = false;  // Прапорець відкладеного реконнекту
@@ -135,7 +136,7 @@ void loadSettings() {
 // ─── Збереження всіх налаштувань у EEPROM ───────────────────────────────────
 void saveSettings() {
   EEPROM.begin(EEPROM_SIZE);
-
+EEPROM.write(ADDR_SAVED_FLAG, SETTINGS_SAVED_FLAG);
   EEPROM.write(ADDR_SAVED_FLAG, SETTINGS_SAVED_FLAG);
   // WiFi
   writeEEPROMString(ADDR_WIFI_SSID, savedSSID, LEN_WIFI_SSID);
@@ -176,20 +177,22 @@ void sendCommandToArduino();
 //  SETUP
 // ═══════════════════════════════════════════════════════════════════════════
 void setup() {
-  Serial.begin(SERIAL_BAUD);     // UART до Arduino (115200) — тільки дані!
-  Serial1.begin(115200);          // Debug UART (GPIO2, TX-only)
+  Serial.begin(SERIAL_BAUD);
+  Serial1.begin(115200);
   delay(100);
   Serial1.println("\n\n=== Samogon Starting ===");
 
-  loadSettings();       // Завантаження налаштувань з EEPROM
-  initWiFi();           // Ініціалізація WiFi (STA + AP fallback)
-  setupWebServer();     // Запуск веб-сервера налаштувань
-  mqttInit();           // Ініціалізація MQTT клієнта
-  initMqttOTA();        // Ініціалізація OTA через MQTT
+  loadSettings();          // Загружаем настройки из EEPROM
+  setupWebServer();        // ✅ ЗАПУСКАЕМ ВЕБ-СЕРВЕР СРАЗУ
+  
+  delay(500);              // Даём серверу время запуститься
+  
+  initWiFi();              // ПОТОМ инициализируем WiFi
+  mqttInit();
+  initMqttOTA();
 
   Serial1.println("=== Samogon Ready ===\n");
 }
-
 // ═══════════════════════════════════════════════════════════════════════════
 //  LOOP
 // ═══════════════════════════════════════════════════════════════════════════
