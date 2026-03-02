@@ -14,6 +14,7 @@ String savedSSID, savedPass;
 bool hotspotMode = false;
 int8_t wifiRSSI = 0;
 String localIP = "";
+String gatewayIP = "";
 volatile bool wifiNeedsReconnect = false;  // Прапорець відкладеного реконнекту WiFi
 
 // ─── Глобальні змінні MQTT ──────────────────────────────────────────────────

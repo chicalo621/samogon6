@@ -297,6 +297,8 @@ updateTopicPreview();};
 <label>Пароль:</label>
 <input type="text" name="pass" value="%PASS%">
 
+<div class="row"><span class="lbl">IP роутера (Gateway):</span><span class="val">%GATEWAY_IP%</span></div>
+
 <div id="wmsg" class="msg"></div>
 <div style="margin-top:15px"><button type="submit" class="b">💾 Зберегти WiFi</button></div>
 </form>
