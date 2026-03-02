@@ -209,11 +209,16 @@ void loop() {
   }
 
   // Відкладений rekonnekt WiFi (після збереження WiFi з веб)
-  if (wifiNeedsReconnect) {
-    wifiNeedsReconnect = false;
-    Serial1.println("[LOOP] WiFi реконнект (deferred)...");
+ if (wifiNeedsReconnect) {
+  wifiNeedsReconnect = false;
+  if (savedSSID.length() == 0) {
+    Serial.println("[LOOP] Switching to hotspot (ssid empty)...");
+    hotspotSetup();
+  } else {
+    Serial.println("[LOOP] WiFi reconnect (deferred)...");
     ConnectWIFI(savedSSID, savedPass);
   }
+}
 
   // Відкладений реконнект MQTT (після збереження налаштувань з веб)
   if (mqttNeedsReconnect) {

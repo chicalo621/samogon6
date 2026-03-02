@@ -154,7 +154,8 @@ if (request->hasParam("pass", true)) {
   savedPass = "";
   settingsNeedSave = true;
   saveSettings();
-  hotspotSetup();
+wifiNeedsReconnect = true;
+Serial.println("[save_wifi] scheduled AP switch in loop()");
 } else if (mode == "router") {
   savedSSID = ssid;
   savedPass = pass;

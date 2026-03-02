@@ -60,7 +60,6 @@ window.onload=uD;
 <div class="c">
 <h1>🔗 Samogon</h1>
 <div class="sub">Serial ↔ MQTT Gateway</div>
-
 <div class="d">
 <div class="hdr">📶 WiFi</div>
 <div class="row"><span class="lbl">Статус:</span><span id="wifi_st" class="val">---</span></div>
@@ -68,23 +67,19 @@ window.onload=uD;
 <div class="row"><span class="lbl">IP:</span><span id="wifi_ip" class="val">---</span></div>
 <div class="row"><span class="lbl">Сигнал:</span><span id="wifi_rssi" class="val">---</span></div>
 </div>
-
 <div class="d">
 <div class="hdr">📡 MQTT</div>
 <div class="row"><span class="lbl">Статус:</span><span id="mqtt_st" class="val">---</span></div>
 <div class="row"><span class="lbl">Сервер:</span><span id="mqtt_srv" class="val">---</span></div>
 </div>
-
 <div class="d">
 <div class="hdr">📟 Serial дані</div>
 <div class="row"><span class="lbl">Raw:</span><span id="serial_raw" class="val" style="font-family:monospace;font-size:.85em;word-break:break-all">---</span></div>
 <div class="mqtt-data" id="serial_data"><div class="mqtt-item" style="color:#888">очікування даних...</div></div>
 </div>
-
 <div class="d">
 <div class="row"><span class="lbl">Час роботи:</span><span id="uptime" class="val">---</span></div>
 </div>
-
 <div style="text-align:center;margin:15px 0">
 <a href="/settings" class="b">⚙ Налаштування</a>
 <a href="/send" class="b">📤 Відправити</a>
@@ -138,25 +133,21 @@ l.innerHTML='<div class="'+cls+'">'+msg+'</div>'+l.innerHTML;
 </head><body>
 <div class="c">
 <h1>📤 Відправити</h1>
-
 <div class="d">
 <div class="hdr">📟 Serial команда</div>
 <input type="text" id="scmd" placeholder="Введіть команду для Serial...">
 <button class="b" onclick="sendSerial()">Відправити в Serial</button>
 </div>
-
 <div class="d">
 <div class="hdr">📡 MQTT публікація</div>
 <input type="text" id="mtopic" placeholder="Топік (наприклад bridge/cmd/power)">
 <input type="text" id="mpayload" placeholder="Payload (значення)">
 <button class="b" onclick="sendMqtt()">Публікувати в MQTT</button>
 </div>
-
 <div class="d">
 <div class="hdr">📋 Лог</div>
 <div class="log" id="log"><div style="color:#555">тут будуть відповіді...</div></div>
 </div>
-
 <div style="text-align:center;margin:15px 0">
 <a href="/" class="b">← Назад</a>
 </div>
@@ -199,83 +190,112 @@ input[type=radio]{margin-right:5px}
 </style>
 <script>
 function openTab(evt,name){
-var tc=document.getElementsByClassName('tabcontent');
-for(var i=0;i<tc.length;i++)tc[i].style.display='none';
-var tl=document.getElementsByClassName('tablinks');
-for(var i=0;i<tl.length;i++)tl[i].className=tl[i].className.replace(' active','');
-document.getElementById(name).style.display='block';
-evt.currentTarget.className+=' active';
+  var tc=document.getElementsByClassName('tabcontent');
+  for(var i=0;i<tc.length;i++)tc[i].style.display='none';
+  var tl=document.getElementsByClassName('tablinks');
+  for(var i=0;i<tl.length;i++)tl[i].className=tl[i].className.replace(' active','');
+  document.getElementById(name).style.display='block';
+  evt.currentTarget.className+=' active';
 }
 function saveWifi(e){
-e.preventDefault();
-var mode = document.querySelector('input[name="mode"]:checked').value;
-var ssid = document.getElementById('ssid').value;
-var pass = document.querySelector('input[name="pass"]').value;
-var data = new URLSearchParams();
-data.append('mode', mode);
-data.append('ssid', ssid);
-data.append('pass', pass);
-fetch('/save_wifi',{method:'POST',body:data}).then(r=>r.text()).then(t=>{
-showMsg('wmsg','Налаштування збережено!','ok');
-}).catch(err=>showMsg('wmsg','Помилка: '+err,'err'));
+  e.preventDefault();
+  var mode = document.querySelector('input[name="mode"]:checked').value;
+  var ssid = document.getElementById('ssid').value.trim();
+  var pass = document.querySelector('input[name="pass"]').value;
+  var data = new URLSearchParams();
+  data.append('mode', mode);
+  data.append('ssid', ssid);
+  data.append('pass', pass);
+  fetch('/save_wifi', {method:'POST', body:data})
+    .then(r=>r.text())
+    .then(t=>{
+      showMsg('wmsg','Налаштування збережено!','ok');
+    })
+    .catch(err=>{
+      showMsg('wmsg','Помилка: '+err,'err');
+    });
 }
 function saveMqtt(e){
-e.preventDefault();
-var f=new FormData(document.getElementById('mqttForm'));
-fetch('/save_mqtt',{method:'POST',body:new URLSearchParams(f)}).then(r=>r.text()).then(t=>{
-showMsg('mmsg','Налаштування MQTT збережено!','ok');
-}).catch(err=>showMsg('mmsg','Помилка: '+err,'err'));
+  e.preventDefault();
+  var f=new FormData(document.getElementById('mqttForm'));
+  fetch('/save_mqtt',{method:'POST',body:new URLSearchParams(f)}).then(r=>r.text()).then(t=>{
+    showMsg('mmsg','Налаштування MQTT збережено!','ok');
+  }).catch(err=>showMsg('mmsg','Помилка: '+err,'err'));
 }
 function showMsg(id,text,cls){
-var m=document.getElementById(id);
-m.innerText=text;m.className='msg '+cls;
-if(cls=='err') setTimeout(function(){m.className='msg';},6000);
+  var m=document.getElementById(id);
+  m.innerText=text;m.className='msg '+cls;
+  if(cls=='err') setTimeout(function(){m.className='msg';},6000);
 }
 function restartDevice(){
-if(confirm('Перезавантажити пристрій?')){
-fetch('/restart').then(r=>{showMsg('wmsg','Перезавантаження...','ok');});
-}}
-function resetSettings(){
-if(confirm('Скинути ВСІ налаштування до заводських?')){
-fetch('/factory_reset').then(r=>{showMsg('wmsg','Скинуто. Перезавантаження...','ok');
-setTimeout(function(){location.reload();},5000);});
-}}
-function scanWifi(){
-document.getElementById('scanBtn').innerText='Сканування...';
-fetch('/scan_wifi').then(r=>r.json()).then(nets=>{
-var sel=document.getElementById('ssid_list');
-sel.innerHTML='<option value="">-- Оберіть мережу --</option>';
-for(var i=0;i<nets.length;i++){
-sel.innerHTML+='<option value="'+nets[i].ssid+'">'+nets[i].ssid+' ('+nets[i].rssi+' dBm)</option>';
+  if(confirm('Перезавантажити пристрій?')){
+    fetch('/restart').then(r=>{showMsg('wmsg','Перезавантаження...','ok');});
+  }
 }
-sel.style.display='block';
-document.getElementById('scanBtn').innerText='🔍 Сканувати';
-}).catch(e=>{document.getElementById('scanBtn').innerText='🔍 Сканувати';});
+function resetSettings(){
+  if(confirm('Скинути ВСІ налаштування до заводських?')){
+    fetch('/factory_reset').then(r=>{showMsg('wmsg','Скинуто. Перезавантаження...','ok');
+      setTimeout(function(){location.reload();},5000);});
+  }
+}
+function scanWifi(retry=0){
+  document.getElementById('scanBtn').innerText='Сканування...';
+  fetch('/scan_wifi').then(r=>r.json()).then(nets=>{
+    var sel=document.getElementById('ssid_list');
+    sel.innerHTML='<option value="">-- Оберіть мережу --</option>';
+    if(nets.length > 0) {
+      for(var i=0;i<nets.length;i++){
+        sel.innerHTML+='<option value="'+nets[i].ssid+'">'+nets[i].ssid+' ('+nets[i].rssi+' dBm)</option>';
+      }
+      sel.style.display='block';
+      document.getElementById('scanBtn').innerText='🔍 Сканувати';
+    } else if(retry < 3) {
+      setTimeout(function(){ scanWifi(retry+1); }, 1000);
+    } else {
+      sel.style.display='block';
+      document.getElementById('scanBtn').innerText='🔍 Сканувати';
+    }
+  }).catch(e=>{
+    document.getElementById('scanBtn').innerText='🔍 Сканувати';
+  });
 }
 function selectSSID(){
-var sel=document.getElementById('ssid_list');
-if(sel.value){document.getElementById('ssid').value=sel.value;}
+  var sel=document.getElementById('ssid_list');
+  if(sel.value){
+    document.getElementById('ssid').value = sel.value.trim();
+  }
 }
 function updateTopicPreview(){
-var tk=document.getElementById('user_token').value.trim();
-var dt=document.getElementById('device_type').value.trim()||'sam';
-var dv=document.getElementById('device_version').value.trim()||'1';
-var pp=document.getElementById('pub_preview');
-var sp=document.getElementById('sub_preview');
-var mt=document.getElementById('manual_topics');
-if(tk.length>0){
-pp.innerText=tk+'/'+dv+'/'+dt+'/data/{key}';
-sp.innerText=tk+'/'+dv+'/'+dt+'/cmd/{key}';
-mt.style.display='none';
-}else{
-pp.innerText=dt+'/data/{key} (вручну)';
-sp.innerText=dt+'/cmd/{key} (вручну)';
-mt.style.display='block';
+  var tk=document.getElementById('user_token').value.trim();
+  var dt=document.getElementById('device_type').value.trim()||'sam';
+  var dv=document.getElementById('device_version').value.trim()||'1';
+  var pp=document.getElementById('pub_preview');
+  var sp=document.getElementById('sub_preview');
+  var mt=document.getElementById('manual_topics');
+  if(tk.length>0){
+    pp.innerText=tk+'/'+dv+'/'+dt+'/data/{key}';
+    sp.innerText=tk+'/'+dv+'/'+dt+'/cmd/{key}';
+    mt.style.display='none';
+  }else{
+    pp.innerText=dt+'/data/{key} (вручну)';
+    sp.innerText=dt+'/cmd/{key} (вручну)';
+    mt.style.display='block';
+  }
 }
+function updateStaIP(){
+  fetch('/get_status').then(r=>r.json()).then(d=>{
+    document.getElementById('sta_ip_val').innerText = d.wifi_ip || '-';
+  });
 }
-window.onload=function(){document.getElementById('WiFi').style.display='block';
-document.querySelector('.tablinks').className+=' active';
-updateTopicPreview();};
+setInterval(updateStaIP, 3000);
+window.onload=function(){
+  try {
+    document.getElementById('WiFi').style.display='block';
+    document.querySelector('.tablinks').className+=' active';
+    if(typeof updateTopicPreview==='function') updateTopicPreview();
+    updateStaIP();
+  } catch(e){}
+};
 </script>
 </head><body>
 <div class="c">
@@ -305,7 +325,7 @@ updateTopicPreview();};
 <br><br>
 
 <label style="color:#4CAF50">IP ESP (STA):</label>
-<div style="padding:10px;background:#333;border-radius:5px;margin:8px 0;color:#2ecc71;font-family:monospace">
+<div id="sta_ip_val" style="padding:10px;background:#333;border-radius:5px;margin:8px 0;color:#2ecc71;font-family:monospace">
 %STA_IP%
 </div>
 <br>
