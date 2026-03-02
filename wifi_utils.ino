@@ -29,8 +29,9 @@ void stopAP() {
 // ─── Підключення до WiFi мережі ────────────────────────────────────────────
 void ConnectWIFI(String SSID, String Pass) {
 #ifdef ENABLE_WIFI
-  // Запускаємо ТІЛЬКИ STA — AP увімкнеться лише при невдачі
-  WiFi.mode(WIFI_STA);
+  // AP+STA — AP залишається для веб-інтерфейсу під час підключення
+  WiFi.mode(WIFI_AP_STA);
+  if (!hotspotMode) startAP();
   WiFi.setSleepMode(WIFI_NONE_SLEEP);
   WiFi.setAutoReconnect(true);
   WiFi.persistent(false);
@@ -46,8 +47,7 @@ void ConnectWIFI(String SSID, String Pass) {
   Serial1.println();
 
   if (WiFi.status() == WL_CONNECTED) {
-    // STA підключено — AP не потрібна
-    stopAP();
+    // STA підключено — AP поки залишається (loopWIFI вимкне її через 20с)
     localIP = WiFi.localIP().toString();
     Serial1.println("[WiFi] Підключено. IP: " + localIP);
     Serial1.println("[WiFi] RSSI: " + String(WiFi.RSSI()) + " dBm");

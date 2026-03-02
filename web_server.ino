@@ -122,12 +122,9 @@ void setupWebServer() {
       } else {
         savedSSID = request->hasParam("ssid", true) ? request->getParam("ssid", true)->value() : "";
         savedPass = request->hasParam("pass", true) ? request->getParam("pass", true)->value() : "";
-        // Відповідь одразу, збереження та підключення — в loop()
         request->send(200, "text/plain", "OK");
         settingsNeedSave = true;
-        // WiFi реконнект теж відкладений
-        delay(50000);
-        ConnectWIFI(savedSSID, savedPass);
+        wifiNeedsReconnect = true;
       }
     } else {
       request->send(400, "text/plain", "Missing mode");

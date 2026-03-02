@@ -1,6 +1,6 @@
 #pragma once
 // ============================================================================
-//  Samogon — Конфигурація проекту
+//  Samogon — Конфігурація проекту
 //  ESP8266 Serial ↔ MQTT Bridge з веб-інтерфейсом налаштувань
 // ============================================================================
 
@@ -12,10 +12,11 @@
 #define ENABLE_SERIAL_BRIDGE   // Serial ↔ MQTT міст
 
 // ─── Налаштування WiFi за замовчуванням ─────────────────────────────────────
-#define DEFAULT_WIFI_SSID      "K-18"               // SSID за замовчуванням (порожній = AP режим)
-#define DEFAULT_WIFI_PASS      "1142227freedom"               // Пароль за замовчуванням
+#define DEFAULT_WIFI_SSID      ""               // SSID за замовчуванням (порожній = AP режим)
+#define DEFAULT_WIFI_PASS      ""               // Пароль за замовчуванням
 #define AP_SSID                "Samogon_Setup"  // Назва точки доступу
-#define AP_PASS                "12345678"        // Пароль точки доступу
+#define AP_PASS                "12345678"
+
 #define WIFI_CONNECT_TIMEOUT   10000             // Таймаут підключення (мс)
 #define WIFI_RECONNECT_INTERVAL 20000            // Інтервал перепідключення (мс)
 
@@ -25,7 +26,7 @@
 #define DEFAULT_USER_TOKEN     ""                // Номер телефону (380991234567)
 
 // ─── Налаштування MQTT за замовчуванням ─────────────────────────────────────
-#define DEFAULT_MQTT_SERVER    "vmi216392.contaboserver.net"                // MQTT сервер
+#define DEFAULT_MQTT_SERVER    "vmi516392.contaboserver.net"                // MQTT сервер
 #define DEFAULT_MQTT_PORT      9001              // MQTT порт
 #define DEFAULT_MQTT_USER      "samovar"                // MQTT користувач
 #define DEFAULT_MQTT_PASS      "ATxRDyJ3R3ad"                // MQTT пароль
@@ -41,7 +42,7 @@
 #define SERIAL_BUFFER_SIZE     256               // Розмір буфера прийому
 #define SERIAL_DELIMITER       '|'               // Роздільник ключ=значення пар
 #define SERIAL_KV_SEPARATOR    '='               // Роздільник ключ від значення
-#define MAX_SERIAL_KEYS        16                // Максимальна кількість пар ключ=значення
+#define MAX_SERIAL_KEYS        19                // Максимальна кількість пар ключ=значення 16
 
 // ─── EEPROM ─────────────────────────────────────────────────────────────────
 #define EEPROM_SIZE            512
@@ -82,4 +83,3 @@
 // ─── Інше ───────────────────────────────────────────────────────────────────
 #define ON  true
 #define OFF false
-

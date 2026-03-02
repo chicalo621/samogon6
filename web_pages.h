@@ -210,8 +210,7 @@ function saveWifi(e){
 e.preventDefault();
 var f=new FormData(document.getElementById('wifiForm'));
 fetch('/save_wifi',{method:'POST',body:new URLSearchParams(f)}).then(r=>r.text()).then(t=>{
-showMsg('wmsg','Налаштування WiFi збережено! Перепідключення...','ok');
-setTimeout(function(){location.reload();},5000);
+showMsg('wmsg','Налаштування збережено!','ok');
 }).catch(err=>showMsg('wmsg','Помилка: '+err,'err'));
 }
 function saveMqtt(e){
@@ -224,7 +223,7 @@ showMsg('mmsg','Налаштування MQTT збережено!','ok');
 function showMsg(id,text,cls){
 var m=document.getElementById(id);
 m.innerText=text;m.className='msg '+cls;
-setTimeout(function(){m.className='msg';},6000);
+if(cls=='err') setTimeout(function(){m.className='msg';},6000);
 }
 function restartDevice(){
 if(confirm('Перезавантажити пристрій?')){
@@ -424,7 +423,7 @@ if(r.status==='ok'){showMsg('omsg',r.msg,'ok');pf.style.width='100%';pf.innerTex
 else{showMsg('omsg',r.msg||'Помилка','err');document.getElementById('ubtn').disabled=false;}
 }catch(e){showMsg('omsg','Помилка відповіді','err');document.getElementById('ubtn').disabled=false;}
 };
-xhr.onerror=function(){showMsg('omsg','Помога з\'єднання','err');document.getElementById('ubtn').disabled=false;};
+xhr.onerror=function(){showMsg('omsg','Помилка з\'єднання','err');document.getElementById('ubtn').disabled=false;};
 xhr.open('POST','/api/ota_upload');
 xhr.send(fd);
 }
@@ -586,11 +585,9 @@ const char AUTOMATION_PAGE[] PROGMEM = R"HTML(
     <button class="select-btn">Вибрати</button>
   </div>
   <script>
-    // Toggle expand section
     document.getElementById('expandChk').addEventListener('change', function() {
       document.getElementById('expandSection').style.display = this.checked ? 'block' : 'none';
     });
-    // TODO: Add AJAX to fetch live values from /get_status and update UI
   </script>
 </body>
 </html>
