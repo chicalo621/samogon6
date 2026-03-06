@@ -542,9 +542,9 @@ void readByteFromUART(byte data, int port) {
   }
 }
 
-//  ДЕКОДУВАННЯ UART КОМАНД (char[] замість String.indexOf/substring)
 // ═══════════════════════════════════════════════════════════════════════════
-
+//  ДЕКОДУВАННЯ UART КОМАНД
+// ═══════════════════════════════════════════════════════════════════════════
 void decodeUartCommand(const char* cmd) {
   const char* p;
 
@@ -651,7 +651,7 @@ void sendDataPacketwifi(Print &out) {
   float lowerVal = (ct1 + 3.14f) * (colt1 + atm1);
   dtostrf(lowerVal, 0, 1, displayLowerBuf);
 
-  out.print(F("HomeSamogon.ru/4.8,"));
+  out.print(F("RealKraft/4.8,"));
   printFloat(out, columnTemp, 1); out.print(',');
   printFloat(out, atmPressure, 1); out.print(',');
   printFloat(out, cubeTemp, 1); out.print(',');
