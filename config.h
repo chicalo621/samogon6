@@ -42,7 +42,7 @@
 #define SERIAL_BUFFER_SIZE     256               // Розмір буфера прийому
 #define SERIAL_DELIMITER       '|'               // Роздільник ключ=значення пар
 #define SERIAL_KV_SEPARATOR    '='               // Роздільник ключ від значення
-#define MAX_SERIAL_KEYS        19                // Максимальна кількість пар ключ=значення 16
+#define MAX_SERIAL_KEYS        22                // Максимальна кількість пар ключ=значення 16
 
 // ─── EEPROM ─────────────────────────────────────────────────────────────────
 #define EEPROM_SIZE            512

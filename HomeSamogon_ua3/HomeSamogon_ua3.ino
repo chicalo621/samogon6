@@ -542,26 +542,25 @@ void readByteFromUART(byte data, int port) {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-//  ДЕКОДУВАННЯ UART КОМАНД
+//  ДЕКОДУВАННЯ UART КОМАНД (char[] замість String.indexOf/substring)
 // ═══════════════════════════════════════════════════════════════════════════
 
 void decodeUartCommand(const char* cmd) {
   const char* p;
 
-  // #value → tempInt2 (ШІМ клапана) — тільки якщо ТЕН увімкнений
+  // #value! → tempInt2 (ШІМ клапана)
   p = strchr(cmd, '#');
-  if (p && tenEnabled) {
+  if (p) {
     tempInt2 = atoi(p + 1);
   }
 
-  // @value → alarmTempLimit (температура сигналізації)
+  // @value! → alarmTempLimit (температура сигналізації)
   p = strchr(cmd, '@');
   if (p) {
     alarmTempLimit = (int)atof(p + 1);
   }
 
-  // *value → pwmValue2
+  // *value% → pwmValue2
   p = strchr(cmd, '*');
   if (p) {
     pressureSensorValue = atmPressure;
@@ -569,22 +568,22 @@ void decodeUartCommand(const char* cmd) {
     pwmValue2 = atof(p + 1);
   }
 
-  // &value → pwmValue1
+  // &value* → pwmValue1
   p = strchr(cmd, '&');
   if (p) {
     pwmValue1 = atof(p + 1);
   }
 
-  // $value → tempFlag33 (авто режим) — тільки якщо ТЕН увімкнений
+  // $value& → tempFlag33 (авто режим)
   p = strchr(cmd, '$');
-  if (p && tenEnabled) {
+  if (p) {
     char val = *(p + 1);
     if (val == '0') triggerFlag3b = 0;
     if (val == '1') triggerFlag3b = 1;
     tempFlag33 = triggerFlag3b;
   }
 
-  // ^value → tempFlag29 (клапан води)
+  // ^value$ → tempFlag29 (клапан води)
   p = strchr(cmd, '^');
   if (p) {
     char val = *(p + 1);
@@ -593,19 +592,28 @@ void decodeUartCommand(const char* cmd) {
     tempFlag29 = triggerFlag2;
   }
 
-  // !value → tenEnabled (увімк/вимк ТЕН дистанційно)
-  p = strchr(cmd, '!');
+  // %value~ → displayMiddleMode (центральна позиція дисплея)
+  p = strchr(cmd, '%');
   if (p) {
-    char val = *(p + 1);
-    if (val == '1') {
-      tenEnabled = true;
-    }
-    if (val == '0') {
-      tenEnabled = false;
-      tempInt2 = 0;        // ШІМ = 0
-      tempFlag33 = 0;      // авто режим вимкнути
-      // alarmFlag та всі таймери продовжують роботу штатно
-    }
+    displayMiddleMode = atoi(p + 1);
+  }
+
+  // :value! → pwmPeriodMs (період клапана в мілісекундах)
+  p = strchr(cmd, ':');
+  if (p) {
+    pwmPeriodMs = atoi(p + 1);
+  }
+
+  // ;value! → pwmFinishValue (дистиляція до % відкриття клапана)
+  p = strchr(cmd, ';');
+  if (p) {
+    pwmFinishValue = atoi(p + 1);
+  }
+
+  // |value! → cubeFinishTemp (дистиляція до температури в кубі)
+  p = strchr(cmd, '|');
+  if (p) {
+    cubeFinishTemp = atof(p + 1);
   }
 }
 
