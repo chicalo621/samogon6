@@ -545,22 +545,23 @@ void readByteFromUART(byte data, int port) {
 // ═══════════════════════════════════════════════════════════════════════════
 //  ДЕКОДУВАННЯ UART КОМАНД
 // ═══════════════════════════════════════════════════════════════════════════
+
 void decodeUartCommand(const char* cmd) {
   const char* p;
 
-  // #value! → tempInt2 (ШІМ клапана)
+  // #value → tempInt2 (ШІМ клапана) — тільки якщо ТЕН увімкнений
   p = strchr(cmd, '#');
-  if (p) {
+  if (p && tenEnabled) {
     tempInt2 = atoi(p + 1);
   }
 
-  // @value! → alarmTempLimit (температура сигналізації)
+  // @value → alarmTempLimit (температура сигналізації)
   p = strchr(cmd, '@');
   if (p) {
     alarmTempLimit = (int)atof(p + 1);
   }
 
-  // *value% → pwmValue2
+  // *value → pwmValue2
   p = strchr(cmd, '*');
   if (p) {
     pressureSensorValue = atmPressure;
@@ -568,22 +569,22 @@ void decodeUartCommand(const char* cmd) {
     pwmValue2 = atof(p + 1);
   }
 
-  // &value* → pwmValue1
+  // &value → pwmValue1
   p = strchr(cmd, '&');
   if (p) {
     pwmValue1 = atof(p + 1);
   }
 
-  // $value& → tempFlag33 (авто режим)
+  // $value → tempFlag33 (авто режим) — тільки якщо ТЕН увімкнений
   p = strchr(cmd, '$');
-  if (p) {
+  if (p && tenEnabled) {
     char val = *(p + 1);
     if (val == '0') triggerFlag3b = 0;
     if (val == '1') triggerFlag3b = 1;
     tempFlag33 = triggerFlag3b;
   }
 
-  // ^value$ → tempFlag29 (клапан води)
+  // ^value → tempFlag29 (клапан води)
   p = strchr(cmd, '^');
   if (p) {
     char val = *(p + 1);
@@ -591,8 +592,7 @@ void decodeUartCommand(const char* cmd) {
     if (val == '1') triggerFlag2 = 1;
     tempFlag29 = triggerFlag2;
   }
-
-  // %value~ → displayMiddleMode (центральна позиція дисплея)
+// %value~ → displayMiddleMode (центральна позиція дисплея)
   p = strchr(cmd, '%');
   if (p) {
     displayMiddleMode = atoi(p + 1);
@@ -614,6 +614,20 @@ void decodeUartCommand(const char* cmd) {
   p = strchr(cmd, '|');
   if (p) {
     cubeFinishTemp = atof(p + 1);
+  }
+  // !value → tenEnabled (увімк/вимк ТЕН дистанційно)
+  p = strchr(cmd, '!');
+  if (p) {
+    char val = *(p + 1);
+    if (val == '1') {
+      tenEnabled = true;
+    }
+    if (val == '0') {
+      tenEnabled = false;
+      tempInt2 = 0;        // ШІМ = 0
+      tempFlag33 = 0;      // авто режим вимкнути
+      // alarmFlag та всі таймери продовжують роботу штатно
+    }
   }
 }
 
@@ -651,7 +665,7 @@ void sendDataPacketwifi(Print &out) {
   float lowerVal = (ct1 + 3.14f) * (colt1 + atm1);
   dtostrf(lowerVal, 0, 1, displayLowerBuf);
 
-  out.print(F("RealKraft/4.8,"));
+  out.print(F("HomeSamogon.ru/4.8,"));
   printFloat(out, columnTemp, 1); out.print(',');
   printFloat(out, atmPressure, 1); out.print(',');
   printFloat(out, cubeTemp, 1); out.print(',');
@@ -672,7 +686,7 @@ void sendDataPacketwifi(Print &out) {
   out.print(finishFlag ? '1' : '0'); out.print(',');          // 1=іде, 0=завершена
   printFloat(out, calcCubeAlcohol(cubeTemp), 1); out.print(',');     // % спирту куб
   printFloat(out, calcColumnAlcohol(columnTemp), 1); out.print(','); // % спирту колона
-  out.print(F("%,"));
+  out.println(F("%,"));
 }// ═══════════════════���═══════════════════════════════════════════════════════
 //  SETUP
 // ═══════════════════════════════════════════════════════════════════════════
