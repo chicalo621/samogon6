@@ -137,10 +137,18 @@ bool columnSensorFlag = 1; // true = UART відсутній (локальний
 bool cubeSensorFlag   = 1; // true = є новий UART пакет для обробки
 
 // ─── Температури ─────────────────────────────────────────────────────────────
-float columnTemp = 0; // Температура колони (°C), з DS18B20 або UART
-float cubeTemp   = 0; // Температура куба   (°C), з DS18B20 або UART
-float alarmTemp  = 0; // Температура аварійного датчика (°C), DS18B20 [3-й]
+float columnTemp = 0;
+float cubeTemp   = 0;
+float alarmTemp  = 0;
 
+// ─── Таймаут датчиків DS18B20 ────────────────────────────────────────────────
+#define SENSOR_TIMEOUT_MS      15000  // 15 сек без вдалого читання = датчик відключений
+unsigned long columnSensorLastOK = 0;
+unsigned long cubeSensorLastOK   = 0;
+unsigned long alarmSensorLastOK  = 0;
+bool columnSensorOK = false; // true = датчик колони живий
+bool cubeSensorOK   = false; // true = датчик куба живий
+bool alarmSensorOK  = false; // true = аварійний датчик живий
 // ─── Тиск ────────────────────────────────────────────────────────────────────
 float atmPressure = 760;          // Атмосферний тиск (мм рт.ст.), з BMP180
 float cubeTempCorrection = 0;     // Корекція температури куба (°C, додається до cubeTemp)
@@ -184,6 +192,7 @@ bool alarmFlag2 = 0; // ДЖЕРЕЛО АВАРІЇ (поточний стан):
                      //   0 = аварійних умов немає
                      //   1 = є аварія (протічка OR alarmTemp > vaporSensorTriggerTemp)
                      // Після 30 сек з alarmFlag2=1 → alarmFlag стає 0
+bool sensorsInitialized = false; // false = датчики ще не прочитані жодного разу					 
 
 // ─── Температурна сигналізація ───────────────────────────────────────────────
 float alarmTempLimit = 110; // Ліміт температури куба (°C):
@@ -988,7 +997,7 @@ void sendDataPacketwifi(Print &out) {
   printFloat(out, cubeFinishTemp, 1);                out.print(','); // cubeFinishTemp
   out.print(pwmFinishValue, DEC);                    out.print(','); // pwmFinishValue
   out.print(pwmPeriodMs, DEC);                       out.print(','); // pwmPeriodMs
-  out.print(tenEnabled ? '1' : '0');                 out.print(','); // tenEnabled: 1=ON, 0=OFF
+  out.print(tenEnabled ? '0' : '1');                 out.print(','); // tenEnabled: інверт: 0=ON, 1=OFF
   out.print(finishFlag ? '1' : '0');                 out.print(','); // finishFlag: 1=іде, 0=кінець
   printFloat(out, calcCubeAlcohol(cubeTemp), 1);     out.print(','); // % спирту куб
   printFloat(out, calcColumnAlcohol(columnTemp), 1); out.print(','); // % спирту колона
@@ -1031,8 +1040,13 @@ digitalWrite(AVARIA_OUTPUT_PIN, LOW);
   // ─── Ініціалізація шин та периферії ─────────────────────────────────────
 
   // I2C шина (для LCD та BMP180)
-  Wire.begin();
-  delay(10); // Пауза для стабілізації I2C
+    Wire.begin();
+  delay(10);//ауза для стабілізації I2C
+  // Ініціалізація таймера 2 для watchdog ISR
+  TCCR2A = 0x00;
+  TCCR2B = 0x07; // Prescaler 1024
+  TIMSK2 = 0x01; // Переривання по переповненню
+  TCNT2  = 100;
 
   // Зовнішній опорний сигнал для АЦП (для точніших аналогових вимірювань)
   analogReference(EXTERNAL);
@@ -1283,11 +1297,16 @@ void loop() {
   }
   // Фільтр UB: приймаємо тільки значення в діапазоні (1..105)°C
   ubDataUbi = columnSensorValue;
-  funcUB_185384122(&ubDataInstance2, ubDataUbi);
+   funcUB_185384122(&ubDataInstance2, ubDataUbi);
   if (ubDataInstance2.uboFlag && !(columnSensorValue == 85)) {
-    // 85°C = типовий артефакт DS18B20 при відключенні → ігноруємо
-    // Округлення до 1 знака після крапки через int арифметику (економія RAM)
-    columnTemp = (int(10 * ubDataInstance2.uboValue)) / 10.00;
+    columnTemp         = (int(10 * ubDataInstance2.uboValue)) / 10.00;
+    columnSensorLastOK = millis();
+    columnSensorOK     = true;
+  }
+  if (columnSensorOK && isTimer(columnSensorLastOK, SENSOR_TIMEOUT_MS)) {
+    columnTemp     = 0;
+    columnSensorOK = false;
+    tempFlag5      = 1; // оновити LCD рядок 1
   }
 
   // ─── Детектори зміни значень (для оновлення LCD та телеметрії) ───────────
@@ -1338,10 +1357,16 @@ void loop() {
     if (tempFloat < 500) cubeSensorValue = tempFloat;
   }
   ubDataUbi = cubeSensorValue;
-  funcUB_185384122(&ubDataInstance3, ubDataUbi);
+    funcUB_185384122(&ubDataInstance3, ubDataUbi);
   if (ubDataInstance3.uboFlag && !(cubeSensorValue == 85)) {
-    // cubeTempCorrection — ручна поправка температури куба (за замовчуванням 0)
-    cubeTemp = cubeTempCorrection + ubDataInstance3.uboValue;
+    cubeTemp         = cubeTempCorrection + ubDataInstance3.uboValue;
+    cubeSensorLastOK = millis();
+    cubeSensorOK     = true;
+  }
+  if (cubeSensorOK && isTimer(cubeSensorLastOK, SENSOR_TIMEOUT_MS)) {
+    cubeTemp      = 0;
+    cubeSensorOK  = false;
+    tempFlag5     = 1; // оновити LCD рядок 1
   }
 
   // Датчик аварії/пари (tempSensorAddresses[2])
@@ -1352,9 +1377,16 @@ void loop() {
     if (tempFloat < 500) alarmSensorValue = tempFloat;
   }
   ubDataUbi = alarmSensorValue;
-  funcUB_185384122(&ubDataInstance4, ubDataUbi);
+   funcUB_185384122(&ubDataInstance4, ubDataUbi);
   if (ubDataInstance4.uboFlag && !(alarmSensorValue == 85)) {
-    alarmTemp = ubDataInstance4.uboValue;
+    alarmTemp         = ubDataInstance4.uboValue;
+    alarmSensorLastOK = millis();
+    alarmSensorOK     = true;
+  }
+  if (alarmSensorOK && isTimer(alarmSensorLastOK, SENSOR_TIMEOUT_MS)) {
+    alarmTemp      = 0;
+    alarmSensorOK  = false;
+    tempFlag5      = 1; // оновити LCD рядок 1
   }
 
   // ─── Конвертація тиску BMP180 → мм рт.ст. ───────────────────────────────
@@ -1367,8 +1399,11 @@ void loop() {
   // alarmFlag2 = true якщо:
   //   - датчик протічки спрацював (пін LOW через INPUT_PULLUP)
   //   - АБО температура аварійного датчика перевищила поріг (пара потрапила на датчик)
-  alarmFlag2 = ((!digitalRead(RAIN_LEAK_INPUT_PIN)) || (alarmTemp > vaporSensorTriggerTemp));
-
+     // !alarmSensorOK = датчик відвалився → вважаємо аварією (не знаємо чи є пара)
+  alarmFlag2 = sensorsInitialized &&
+               ((!digitalRead(RAIN_LEAK_INPUT_PIN))
+             || (!alarmSensorOK)
+             || (alarmSensorOK && alarmTemp > vaporSensorTriggerTemp));
   // ═══════════════════════════════════════════════════════════════════════
   //  ПЕРЕДАЧА ТЕЛЕМЕТРІЇ (кожні 2 секунди)
   // ═══════════════════════════════════════════════════════════════════════
