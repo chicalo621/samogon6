@@ -426,20 +426,114 @@ float roundFloat(float val, uint8_t dec) {
 // Температура СПАДАЄ зі зростанням % спирту
 // Для уточнення — просто змінюй значення або додавай рядки
 static const float cubeAlcTable[][2] PROGMEM = {
-  { 100.0,  0.0 },
-  {  97.0,  5.0 },
-  {  94.3, 10.0 },
-  {  93.5, 15.0 },
-  {  91.8, 20.0 },
-  {  90.0, 25.0 },
-  {  88.1, 30.0 },
-  {  86.2, 35.0 },
-  {  84.2, 40.0 },
-  {  82.6, 45.0 },
-  {  81.3, 50.0 },
-  {  80.2, 55.0 },
-  {  79.3, 60.0 },
-  {  78.7, 65.0 },
+  {  99.9,  0.01 },
+  {  99.8,  0.1  },
+  {  99.7,  0.15 },
+  {  99.6,  0.2  },
+  {  99.5,  0.3  },
+  {  99.4,  0.4  },
+  {  99.3,  0.5  },
+  {  99.2,  0.6  },
+  {  99.1,  0.7  },
+  {  99.0,  0.8  },
+  {  98.9,  0.9  },
+  {  98.75, 1.0  },
+  {  97.65, 2.0  },
+  {  96.65, 3.0  },
+  {  95.8,  4.0  },
+  {  94.95, 5.0  },
+  {  94.15, 6.0  },
+  {  93.35, 7.0  },
+  {  92.6,  8.0  },
+  {  91.9,  9.0  },
+  {  91.3,  10.0 },
+  {  90.8,  11.0 },
+  {  90.5,  12.0 },
+  {  89.7,  13.0 },
+  {  89.2,  14.0 },
+  {  89.0,  15.0 },
+  {  88.3,  16.0 },
+  {  87.9,  17.0 },
+  {  87.7,  18.0 },
+  {  87.4,  19.0 },
+  {  87.0,  20.0 },
+  {  86.7,  21.0 },
+  {  86.4,  22.0 },
+  {  86.2,  23.0 },
+  {  85.95, 24.0 },
+  {  85.7,  25.0 },
+  {  85.4,  26.0 },
+  {  85.2,  27.0 },
+  {  85.0,  28.0 },
+  {  84.8,  29.0 },
+  {  84.7,  30.0 },
+  {  84.5,  31.0 },
+  {  84.3,  32.0 },
+  {  84.2,  33.0 },
+  {  83.85, 34.0 },
+  {  83.75, 35.0 },
+  {  83.7,  36.0 },
+  {  83.5,  37.0 },
+  {  83.4,  38.0 },
+  {  83.3,  39.0 },
+  {  83.1,  40.0 },
+  {  82.95, 41.0 },
+  {  82.78, 42.0 },
+  {  82.65, 43.0 },
+  {  82.5,  44.0 },
+  {  82.45, 45.0 },
+  {  82.35, 46.0 },
+  {  82.3,  47.0 },
+  {  82.15, 48.0 },
+  {  82.0,  49.0 },
+  {  81.9,  50.0 },
+  {  81.8,  51.0 },
+  {  81.7,  52.0 },
+  {  81.6,  53.0 },
+  {  81.5,  54.0 },
+  {  81.4,  55.0 },
+  {  81.3,  56.0 },
+  {  81.25, 57.0 },
+  {  81.2,  58.0 },
+  {  81.1,  59.0 },
+  {  81.0,  60.0 },
+  {  80.95, 61.0 },
+  {  80.85, 62.0 },
+  {  80.75, 63.0 },
+  {  80.65, 64.0 },
+  {  80.6,  65.0 },
+  {  80.5,  66.0 },
+  {  80.45, 67.0 },
+  {  80.4,  68.0 },
+  {  80.3,  69.0 },
+  {  80.2,  70.0 },
+  {  80.1,  71.0 },
+  {  80.0,  72.0 },
+  {  79.95, 73.0 },
+  {  79.85, 74.0 },
+  {  79.75, 75.0 },
+  {  79.72, 76.0 },
+  {  79.7,  77.0 },
+  {  79.65, 78.0 },
+  {  79.55, 79.0 },
+  {  79.5,  80.0 },
+  {  79.4,  81.0 },
+  {  79.3,  82.0 },
+  {  79.2,  83.0 },
+  {  79.1,  84.0 },
+  {  78.95, 85.0 },
+  {  78.85, 86.0 },
+  {  78.75, 87.0 },
+  {  78.65, 88.0 },
+  {  78.6,  89.0 },
+  {  78.5,  90.0 },
+  {  78.4,  91.0 },
+  {  78.3,  92.0 },
+  {  78.27, 93.0 },
+  {  78.2,  94.0 },
+  {  78.18, 95.0 },
+  {  78.15, 95.57},
+  {  78.0,  96.6 },
 };
 #define CUBE_ALC_TABLE_SIZE (sizeof(cubeAlcTable) / sizeof(cubeAlcTable[0]))
 
@@ -448,30 +542,114 @@ static const float cubeAlcTable[][2] PROGMEM = {
 // Температура СПАДАЄ зі зростанням % спирту
 // Для уточнення — просто змінюй значення або додавай рядки
 static const float columnAlcTable[][2] PROGMEM = {
-  { 100.00, 77.0 },
-  {  99.55, 78.0 },
-  {  99.08, 79.0 },
-  {  98.60, 80.0 },
-  {  98.09, 81.0 },
-  {  97.57, 82.0 },
-  {  97.02, 83.0 },
-  {  96.45, 84.0 },
-  {  95.85, 85.0 },
-  {  95.22, 86.0 },
-  {  94.55, 87.0 },
-  {  93.84, 88.0 },
-  {  93.09, 89.0 },
-  {  92.28, 90.0 },
-  {  91.42, 91.0 },
-  {  90.50, 92.0 },
-  {  89.50, 93.0 },
-  {  88.43, 94.0 },
-  {  87.27, 95.0 },
-  {  85.99, 96.0 },
-  {  84.57, 97.0 },
-  {  82.97, 98.0 },
-  {  81.11, 99.0 },
-  {  78.15, 100.0 },
+  {  99.9,  0.004 },
+  {  99.8,  0.04  },
+  {  99.7,  0.055 },
+  {  99.6,  0.08  },
+  {  99.5,  0.12  },
+  {  99.4,  0.16  },
+  {  99.3,  0.19  },
+  {  99.2,  0.23  },
+  {  99.1,  0.27  },
+  {  99.0,  0.31  },
+  {  98.9,  0.35  },
+  {  98.75, 0.39  },
+  {  97.65, 0.79  },
+  {  96.65, 1.19  },
+  {  95.8,  1.61  },
+  {  94.95, 2.01  },
+  {  94.15, 2.43  },
+  {  93.35, 2.86  },
+  {  92.6,  3.29  },
+  {  91.9,  3.73  },
+  {  91.3,  4.16  },
+  {  90.8,  4.61  },
+  {  90.5,  5.07  },
+  {  89.7,  5.51  },
+  {  89.2,  5.98  },
+  {  89.0,  6.46  },
+  {  88.3,  6.86  },
+  {  87.9,  7.41  },
+  {  87.7,  7.95  },
+  {  87.4,  8.41  },
+  {  87.0,  8.92  },
+  {  86.7,  9.42  },
+  {  86.4,  9.93  },
+  {  86.2,  10.48 },
+  {  85.95, 11.0  },
+  {  85.7,  11.53 },
+  {  85.4,  12.08 },
+  {  85.2,  12.64 },
+  {  85.0,  13.19 },
+  {  84.8,  13.77 },
+  {  84.7,  14.35 },
+  {  84.5,  14.95 },
+  {  84.3,  15.55 },
+  {  84.2,  16.15 },
+  {  83.85, 16.77 },
+  {  83.75, 17.41 },
+  {  83.7,  18.03 },
+  {  83.5,  18.68 },
+  {  83.4,  19.34 },
+  {  83.3,  20.0  },
+  {  83.1,  20.68 },
+  {  82.95, 21.38 },
+  {  82.78, 22.07 },
+  {  82.65, 22.79 },
+  {  82.5,  23.51 },
+  {  82.45, 24.25 },
+  {  82.35, 25.0  },
+  {  82.3,  25.75 },
+  {  82.15, 26.53 },
+  {  82.0,  27.32 },
+  {  81.9,  28.12 },
+  {  81.8,  28.93 },
+  {  81.7,  29.8  },
+  {  81.6,  30.61 },
+  {  81.5,  31.47 },
+  {  81.4,  34.34 },
+  {  81.3,  33.24 },
+  {  81.25, 34.16 },
+  {  81.2,  35.09 },
+  {  81.1,  36.02 },
+  {  81.0,  36.98 },
+  {  80.95, 37.97 },
+  {  80.85, 38.95 },
+  {  80.75, 40.0  },
+  {  80.65, 41.02 },
+  {  80.6,  42.09 },
+  {  80.5,  43.17 },
+  {  80.45, 44.27 },
+  {  80.4,  45.41 },
+  {  80.3,  46.55 },
+  {  80.2,  47.72 },
+  {  80.1,  48.92 },
+  {  80.0,  50.16 },
+  {  79.95, 51.39 },
+  {  79.85, 52.68 },
+  {  79.75, 54.0  },
+  {  79.72, 55.34 },
+  {  79.7,  56.71 },
+  {  79.65, 58.11 },
+  {  79.55, 59.55 },
+  {  79.5,  61.02 },
+  {  79.4,  62.52 },
+  {  79.3,  64.05 },
+  {  79.2,  65.64 },
+  {  79.1,  67.27 },
+  {  78.95, 68.92 },
+  {  78.85, 70.62 },
+  {  78.75, 72.36 },
+  {  78.65, 74.15 },
+  {  78.6,  75.99 },
+  {  78.5,  77.88 },
+  {  78.4,  79.82 },
+  {  78.3,  81.82 },
+  {  78.27, 83.87 },
+  {  78.2,  85.97 },
+  {  78.18, 88.15 },
+  {  78.15, 89.41 },
+  {  78.0,  96.6  },
 };
 #define COLUMN_ALC_TABLE_SIZE (sizeof(columnAlcTable) / sizeof(columnAlcTable[0]))
 
@@ -1293,20 +1471,22 @@ void loop() {
   if (isTimer(columnSensorReadTime, 5000)) {
     columnSensorReadTime = millis();
     tempFloat = readDS18TempOW2(columnSensorAddr, 0);
-    if (tempFloat < 500) columnSensorValue = tempFloat; // 501 = помилка CRC → ігноруємо
+    if (tempFloat < 500) {
+      columnSensorValue  = tempFloat;
+      columnSensorLastOK = millis(); // ← додати
+    }
   }
   // Фільтр UB: приймаємо тільки значення в діапазоні (1..105)°C
   ubDataUbi = columnSensorValue;
    funcUB_185384122(&ubDataInstance2, ubDataUbi);
-  if (ubDataInstance2.uboFlag && !(columnSensorValue == 85)) {
-    columnTemp         = (int(10 * ubDataInstance2.uboValue)) / 10.00;
-    columnSensorLastOK = millis();
-    columnSensorOK     = true;
+    if (ubDataInstance2.uboFlag && !(columnSensorValue == 85)) {
+    columnTemp     = (int(10 * ubDataInstance2.uboValue)) / 10.00;
+    columnSensorOK = true;
   }
   if (columnSensorOK && isTimer(columnSensorLastOK, SENSOR_TIMEOUT_MS)) {
     columnTemp     = 0;
     columnSensorOK = false;
-    tempFlag5      = 1; // оновити LCD рядок 1
+    tempFlag5      = 1;
   }
 
   // ─── Детектори зміни значень (для оновлення LCD та телеметрії) ───────────
@@ -1351,22 +1531,24 @@ void loop() {
 
   // Датчик куба (tempSensorAddresses[1])
   // cubeSensorValue → через фільтр UB → cubeTemp
-  if (isTimer(cubeSensorReadTime, 5000)) {
+    if (isTimer(cubeSensorReadTime, 5000)) {
     cubeSensorReadTime = millis();
     tempFloat = readDS18TempOW2(cubeSensorAddr, 0);
-    if (tempFloat < 500) cubeSensorValue = tempFloat;
+    if (tempFloat < 500) {
+      cubeSensorValue  = tempFloat;
+      cubeSensorLastOK = millis(); // ← сюди, одразу після вдалого читання
+    }
   }
   ubDataUbi = cubeSensorValue;
     funcUB_185384122(&ubDataInstance3, ubDataUbi);
-  if (ubDataInstance3.uboFlag && !(cubeSensorValue == 85)) {
-    cubeTemp         = cubeTempCorrection + ubDataInstance3.uboValue;
-    cubeSensorLastOK = millis();
-    cubeSensorOK     = true;
+   if (ubDataInstance3.uboFlag && !(cubeSensorValue == 85)) {
+    cubeTemp     = cubeTempCorrection + ubDataInstance3.uboValue;
+    cubeSensorOK = true;
   }
   if (cubeSensorOK && isTimer(cubeSensorLastOK, SENSOR_TIMEOUT_MS)) {
-    cubeTemp      = 0;
-    cubeSensorOK  = false;
-    tempFlag5     = 1; // оновити LCD рядок 1
+    cubeTemp     = 0;
+    cubeSensorOK = false;
+    tempFlag5    = 1;
   }
 
   // Датчик аварії/пари (tempSensorAddresses[2])
@@ -1374,19 +1556,21 @@ void loop() {
   if (isTimer(alarmSensorReadTime, 5000)) {
     alarmSensorReadTime = millis();
     tempFloat = readDS18TempOW2(alarmSensorAddr, 0);
-    if (tempFloat < 500) alarmSensorValue = tempFloat;
+    if (tempFloat < 500) {
+      alarmSensorValue  = tempFloat;
+      alarmSensorLastOK = millis(); // ← додати
+    }
   }
   ubDataUbi = alarmSensorValue;
    funcUB_185384122(&ubDataInstance4, ubDataUbi);
-  if (ubDataInstance4.uboFlag && !(alarmSensorValue == 85)) {
-    alarmTemp         = ubDataInstance4.uboValue;
-    alarmSensorLastOK = millis();
-    alarmSensorOK     = true;
+   if (ubDataInstance4.uboFlag && !(alarmSensorValue == 85)) {
+    alarmTemp     = ubDataInstance4.uboValue;
+    alarmSensorOK = true;
   }
   if (alarmSensorOK && isTimer(alarmSensorLastOK, SENSOR_TIMEOUT_MS)) {
-    alarmTemp      = 0;
-    alarmSensorOK  = false;
-    tempFlag5      = 1; // оновити LCD рядок 1
+    alarmTemp     = 0;
+    alarmSensorOK = false;
+    tempFlag5     = 1;
   }
 
   // ─── Конвертація тиску BMP180 → мм рт.ст. ───────────────────────────────
