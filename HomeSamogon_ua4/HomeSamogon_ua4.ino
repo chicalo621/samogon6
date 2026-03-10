@@ -262,7 +262,10 @@ bool triggerFlag2b = 0; // true = активний порт Serial (USB), false 
 bool triggerFlag2  = 0; // Проміжний: стан команди ^ (вода ручна)
 bool triggerFlag3  = 0; // true = колона перевищила pwmValue1 (починаємо рахувати таймер1)
 bool triggerFlag3b = 0; // Проміжний: стан команди $ (авто режим)
-
+#define CMD_COMPLETE_TIMEOUT_MS  50
+bool          cmdBytesReceived   = false;
+unsigned long cmdLastByteMillis  = 0;
+bool          cmdReadyToDecode   = false;
 // ─── Стан бузера та підсвічування ────────────────────────────────────────────
 bool pzs2OES = 0; // true = бузер зараз HIGH (захист від зайвих digitalWrite)
 bool d1b2    = 0; // true = підсвічування LCD зараз увімкнене
@@ -988,107 +991,103 @@ void readByteFromUART(byte data, int port) {
 void decodeUartCommand(const char* cmd) {
   const char* p;
 
-  // ── # → tempInt2 (ШІМ клапана 0..1023) ──────────────────────────────────
-  // Ігнорується якщо ТЕН вимкнений (безпека: не можна керувати клапаном без ТЕН)
+  // 1. # → tempInt2 (ШІМ клапана 0..1023)
   p = strchr(cmd, '#');
   if (p && tenEnabled) {
     tempInt2 = atoi(p + 1);
   }
 
-  // ── @ → alarmTempLimit (температура спрацювання зумера, °C) ─────────────
-  // Приймається завжди (незалежно від стану ТЕН)
+  // 2. @ → alarmTempLimit (температура сигналізації)
   p = strchr(cmd, '@');
   if (p) {
     alarmTempLimit = (int)atof(p + 1);
   }
 
-  // ── * → pwmValue2 (верхня межа авто-ШІМ) + фіксація еталонного тиску ───
-  // При першому отриманні — зберігає поточний тиск як еталон для поправки
+  // 3. * → pwmValue2 (верхня межа авто-ШІМ / стоп)
   p = strchr(cmd, '*');
   if (p) {
-    pressureSensorValue     = atmPressure; // Зберігаємо поточний тиск як еталон
-    pressureSensorInitialized = true;      // Дозволяємо розрахунок поправки тиску
+    pressureSensorValue = atmPressure; 
+    pressureSensorInitialized = true;
     pwmValue2 = atof(p + 1);
   }
 
-  // ── & → pwmValue1 (нижня межа авто-ШІМ, температура СТОП колони) ────────
+  // 4. & → pwmValue1 (нижня межа авто-ШІМ / старт)
   p = strchr(cmd, '&');
   if (p) {
     pwmValue1 = atof(p + 1);
   }
 
-  // ── $ → tempFlag33 (авто режим ШІМ: 0=ручний, 1=авто) ──────────────────
-  // Ігнорується якщо ТЕН вимкнений
+  // 5. $ → tempFlag33 (авто режим ШІМ: 0=ручний, 1=авто)
+  // Перевіряємо саме символ після $, щоб ігнорувати $ як термінатор у воді
   p = strchr(cmd, '$');
   if (p && tenEnabled) {
     char val = *(p + 1);
-    if (val == '0') triggerFlag3b = 0;
-    if (val == '1') triggerFlag3b = 1;
-    tempFlag33 = triggerFlag3b;
+    if (val == '1') {
+      triggerFlag3b = 1;
+      tempFlag33 = 1;
+    } else if (val == '0') {
+      triggerFlag3b = 0;
+      tempFlag33 = 0;
+    }
   }
 
-  // ── ^ → tempFlag29 (ручне керування водою: 0=вимк, 1=увімк) ────────────
-  // Працює незалежно від ТЕН (воду можна вмикати і без нагріву)
+  // 6. ^ → tempFlag29 (керування водою: 0=вимк, 1=увімк)
   p = strchr(cmd, '^');
   if (p) {
     char val = *(p + 1);
-    if (val == '0') triggerFlag2 = 0;
-    if (val == '1') triggerFlag2 = 1;
-    tempFlag29 = triggerFlag2;
+    if (val == '1') {
+      triggerFlag2 = 1;
+      tempFlag29 = 1;
+    } else if (val == '0') {
+      triggerFlag2 = 0;
+      tempFlag29 = 0;
+    }
   }
 
-  // ── % → displayMiddleMode (що показувати в середині рядка 1 LCD) ────────
-  // 0 = атмосферний тиск, 1 = температура аварійного датчика
+  // 7. % → displayMiddleMode (режим дисплея)
   p = strchr(cmd, '%');
   if (p) {
     displayMiddleMode = atoi(p + 1);
   }
 
-  // ── : → pwmPeriodMs (повний період ШІМ клапана в мілісекундах) ──────────
-  // Наприклад 4000 = 4 сек цикл (HIGH+LOW разом)
+  // 8. : → pwmPeriodMs (період ШІМ клапана)
   p = strchr(cmd, ':');
   if (p) {
     pwmPeriodMs = atoi(p + 1);
   }
 
-  // ── ; → pwmFinishValue (ШІМ% при якому авто режим вважає кінець) ────────
-  // Якщо tempInt2 <= pwmFinishValue і tempInt2 >= 16 → finishFlag2=true
+  // 9. ; → pwmFinishValue (ШІМ завершення)
   p = strchr(cmd, ';');
   if (p) {
     pwmFinishValue = atoi(p + 1);
   }
 
-  // ── | → cubeFinishTemp (температура куба °C кінець у ручному режимі) ────
-  // Якщо cubeTemp >= cubeFinishTemp → finishFlag2=true (ручний режим)
+  // 10. | → cubeFinishTemp (температура куба кінець)
+  // Реалізовано захист: якщо прийшов 0 або помилка — ставимо 100
   p = strchr(cmd, '|');
   if (p) {
-    cubeFinishTemp = atof(p + 1);
+    float val = atof(p + 1);
+    if (val <= 0.1) {
+      cubeFinishTemp = 100.0;
+    } else {
+      cubeFinishTemp = val;
+    }
   }
 
-  // ── ! → tenEnabled (увімкнення/вимкнення ТЕН дистанційно) ───────────────
-  // !1 = увімкнути ТЕН (дозволити нагрів і керування клапаном)
-  // !0 = вимкнути ТЕН:
-  //       - клапан закривається
-  //       - ШІМ скидається в 0
-  //       - авто режим вимикається
-  //       - AVARIA (A0) → HIGH
-  //       - розгін (A1) → вимкнений
-  //       - алармові таймери продовжують роботу штатно
+  // 11. ! → tenEnabled (керування ТЕНом)
+  // Перевіряємо саме '1' або '0', щоб ! у кінці інших команд не вимикало ТЕН
   p = strchr(cmd, '!');
   if (p) {
     char val = *(p + 1);
     if (val == '1') {
-      tenEnabled = true;  // Дозволити роботу ТЕН
-    }
-    if (val == '0') {
-      tenEnabled = false; // Заборонити роботу ТЕН
-      tempInt2   = 0;     // Скинути ШІМ → клапан закриється
-      tempFlag33 = 0;     // Вимкнути авто режим
-      // Увага: alarmFlag, таймери аварії та периферії продовжують роботу
+      tenEnabled = true;
+    } else if (val == '0') {
+      tenEnabled = false;
+      tempInt2 = 0;
+      tempFlag33 = 0;
     }
   }
 }
-
 // ═══════════════════════════════════════════════════════════════════════════
 //  ПЕРЕДАЧА UART ПАКЕТУ (короткий — для Bluetooth)
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1453,15 +1452,39 @@ void loop() {
   // triggerFlag2b=false → активний BtSerial (Bluetooth)
   if (avlDfu0)   triggerFlag2b = 1;
   if (avlDfu100) triggerFlag2b = 0;
-
-  // ─── Вибір буфера та декодування UART команди ────────────────────────────
-  const char* cmdBuf = triggerFlag2b ? uartBuf0 : uartBuf100;
-
-  // Декодуємо тільки коли є новий байт (cubeSensorFlag=true на 1 цикл)
-  if (cubeSensorFlag == 1) {
-    decodeUartCommand(cmdBuf); // Розбираємо всі команди у рядку
-    cubeSensorFlag = 0;        // Скидаємо прапор до наступного байту
+ // ─── Декодування UART команди (тільки після повного прийому) ──────────────
+  if (avlDfu100 || avlDfu0) {
+    cmdBytesReceived  = true;
+    cmdLastByteMillis = millis();
+    cmdReadyToDecode  = false;
   }
+
+  if (cmdBytesReceived && !cmdReadyToDecode) {
+    if (isTimer(cmdLastByteMillis, CMD_COMPLETE_TIMEOUT_MS)) {
+      cmdReadyToDecode = true;
+    }
+  }
+
+  if (cmdReadyToDecode) {
+    const char* cmdBuf = triggerFlag2b ? uartBuf0 : uartBuf100;
+    uint8_t cmdLen = triggerFlag2b ? uartBuf0Len : uartBuf100Len;
+
+    if (cmdLen > 0) {
+      decodeUartCommand(cmdBuf);
+      if (triggerFlag2b) { uartBuf0[0] = '\0'; uartBuf0Len = 0; }
+      else               { uartBuf100[0] = '\0'; uartBuf100Len = 0; }
+    }
+    cmdBytesReceived = false;
+    cmdReadyToDecode = false;
+  }
+  // // ─── Вибір буфера та декодування UART команди ────────────────────────────
+  // const char* cmdBuf = triggerFlag2b ? uartBuf0 : uartBuf100;
+
+  // // Декодуємо тільки коли є новий байт (cubeSensorFlag=true на 1 цикл)
+  // if (cubeSensorFlag == 1) {
+    // decodeUartCommand(cmdBuf); // Розбираємо всі команди у рядку
+    // cubeSensorFlag = 0;        // Скидаємо прапор до наступного байту
+  // }
 
   // ═══════════════════════════════════════════════════════════════════════
   //  ЗЧИТУВАННЯ ДАТЧИКІВ DS18B20 (кожні 5 секунд)
@@ -1584,10 +1607,8 @@ void loop() {
   //   - датчик протічки спрацював (пін LOW через INPUT_PULLUP)
   //   - АБО температура аварійного датчика перевищила поріг (пара потрапила на датчик)
      // !alarmSensorOK = датчик відвалився → вважаємо аварією (не знаємо чи є пара)
-  alarmFlag2 = sensorsInitialized &&
-               ((!digitalRead(RAIN_LEAK_INPUT_PIN))
-             || (!alarmSensorOK)
-             || (alarmSensorOK && alarmTemp > vaporSensorTriggerTemp));
+	   alarmFlag2 = ((!digitalRead(RAIN_LEAK_INPUT_PIN)) || (alarmTemp > vaporSensorTriggerTemp));
+ // alarmFlag2 = sensorsInitialized && ((!digitalRead(RAIN_LEAK_INPUT_PIN)) || (!alarmSensorOK) || (alarmSensorOK && alarmTemp > vaporSensorTriggerTemp));
   // ═══════════════════════════════════════════════════════════════════════
   //  ПЕРЕДАЧА ТЕЛЕМЕТРІЇ (кожні 2 секунди)
   // ═══════════════════════════════════════════════════════════════════════
@@ -2180,6 +2201,7 @@ digitalWrite(AVARIA_OUTPUT_PIN, (tenEnabled && alarmFlag) ? HIGH : LOW);
     tempInt2      = 0;      // ШІМ = 0 (клапан закриється)
     pwmCoarseFlag = 0;
     pwmFineFlag   = 0;
+	tenEnabled    = false; 
   }
 
   // ═══════════════════════════════════════════════════════════════════════
