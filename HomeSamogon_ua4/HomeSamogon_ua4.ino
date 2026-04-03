@@ -46,11 +46,30 @@
 #include <Wire.h>
 #include <OneWire.h>
 #include <LiquidCrystal_I2C.h>
-#include <SFE_BMP180.h>
 #include <EEPROM.h>
 #include <EncButton.h>
 #include <avr/pgmspace.h>
 
+// =====================================================
+//  ВИБІР ДАТЧИКА ТИСКУ (compile-time)
+//  Вибери ОДИН варіант у BARO_SENSOR і прошивай.
+//  Зайва гілка не компілюється.
+// =====================================================
+#define BARO_BMP180  1
+#define BARO_BME280  2
+
+#define BARO_SENSOR  BARO_BMP180     // <-- тут перемикаєш перед прошивкою
+
+// для BME280 (I2C адреса найчастіше 0x76 або 0x77)
+#define BME280_ADDR  0x76
+
+#if (BARO_SENSOR == BARO_BMP180)
+  #include <SFE_BMP180.h>
+#elif (BARO_SENSOR == BARO_BME280)
+  #include <GyverBME280.h>
+#else
+  #error "Unknown BARO_SENSOR"
+#endif
 // ─── Піни ────────────────────────────────────────────────────────────────────
 #define BUZZER_PIN              3    // Бузер: HIGH=звук ON
 #define ONE_WIRE_BUS_PIN        6    // OneWire шина датчиків DS18B20
@@ -70,8 +89,13 @@
 #define UART_BUF_SIZE 64             // Розмір UART буфера (байт)
 
 // ─── Периферійні об'єкти ─────────────────────────────────────────────────────
-SFE_BMP180 bmeSensor;                // Датчик атмосферного тиску BMP180
-long bmpPressure = 0;                // Тиск з BMP180 у Па*100 (сирий)
+#if (BARO_SENSOR == BARO_BMP180)
+  SFE_BMP180 bmeSensor;              // BMP180
+#elif (BARO_SENSOR == BARO_BME280)
+  GyverBME280 bmeSensor;             // BME280 (залишив назву bmeSensor щоб мінімум правок)
+#endif
+
+long bmpPressure = 0;                // Тиск у Па*100 (уніфіковано для обох датчиків)            // Тиск з BMP180 у Па*100 (сирий)
 SoftwareSerial BtSerial(SOFT_SERIAL_RX_PIN, SOFT_SERIAL_TX_PIN); // Bluetooth UART
 OneWire oneWireBus(ONE_WIRE_BUS_PIN);              // OneWire шина
 LiquidCrystal_I2C mainDisplay(0x27, 16, 2);        // LCD 16x2 по I2C адресі 0x27
@@ -420,7 +444,19 @@ float roundFloat(float val, uint8_t dec) {
   return rounded / mult;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
+// HH:MM:SS від старту (uptime)
+void printUptimeHMS(Print &out) {
+  unsigned long s = millis() / 1000UL;
+  unsigned int hh = s / 3600UL;
+  unsigned int mm = (s % 3600UL) / 60UL;
+  unsigned int ss = s % 60UL;
+
+  if (hh < 10) out.print('0'); out.print(hh); out.print(':');
+  if (mm < 10) out.print('0'); out.print(mm); out.print(':');
+  if (ss < 10) out.print('0'); out.print(ss);
+}
+/* 
+/// ═══════════════════════════════════════════════════════════════════════════
 //  РОЗРАХУНОК ВМІСТУ СПИРТУ (таблиці у PROGMEM — не займають RAM)
 // ══════════════════════════════════════════════��════════════════════════════
 
@@ -694,6 +730,8 @@ float calcCubeAlcohol(float temp) {
 float calcColumnAlcohol(float temp) {
   return interpAlcTable(temp, columnAlcTable, COLUMN_ALC_TABLE_SIZE);
 }
+ */
+
 // ═══════════════════════════════════════════════════════════════════════════
 //  МЕНЮ (PROGMEM оптимізоване — рядки у флеш, не в RAM)
 // ═══════════════════════════════════════════════════════════════════════════
@@ -861,15 +899,20 @@ void handleEncoderMenu() {
   }
 
   // ── 1 клік поза меню — перемикання ТЕН ───────────────────────────────
-  if (!encoderMenuActive && enc.click()) {
+if (!encoderMenuActive && enc.click()) {
     tenEnabled = !tenEnabled;
     if (!tenEnabled) {
-      tempInt2   = 0;
-      tempFlag33 = 0;
+        tempInt2   = 0;
+        tempFlag33 = 0;
+        // ДОДАТКОВО: завжди записуємо текст TEN OFF та прапор оновлення!
+        strncpy(tempStr11Buf, "TEN OFF", sizeof(tempStr11Buf) - 1);
+        tempStr11Buf[sizeof(tempStr11Buf) - 1] = '\0';
+        tempFlag31 = 1;
+    } else {
+        tempFlag31 = 1; // дозволити перемальовувати й при включенні ТЕНА
     }
-    tempFlag31 = 1;
     return;
-  }
+}
 
   if (!encoderMenuActive) return;
 
@@ -1077,16 +1120,21 @@ void decodeUartCommand(const char* cmd) {
   // 11. ! → tenEnabled (керування ТЕНом)
   // Перевіряємо саме '1' або '0', щоб ! у кінці інших команд не вимикало ТЕН
   p = strchr(cmd, '!');
-  if (p) {
+ if (p) {
     char val = *(p + 1);
     if (val == '1') {
-      tenEnabled = true;
+        tenEnabled = true;
+        tempFlag31 = 1;
     } else if (val == '0') {
-      tenEnabled = false;
-      tempInt2 = 0;
-      tempFlag33 = 0;
+        tenEnabled = false;
+        tempInt2 = 0;
+        tempFlag33 = 0;
+        // ДОДАТИ!
+        strncpy(tempStr11Buf, "TEN OFF", sizeof(tempStr11Buf) - 1);
+        tempStr11Buf[sizeof(tempStr11Buf) - 1] = '\0';
+        tempFlag31 = 1;
     }
-  }
+}
 }
 // ═══════════════════════════════════════════════════════════════════════════
 //  ПЕРЕДАЧА UART ПАКЕТУ (короткий — для Bluetooth)
@@ -1176,12 +1224,57 @@ void sendDataPacketwifi(Print &out) {
   out.print(pwmPeriodMs, DEC);                       out.print(','); // pwmPeriodMs
   out.print(tenEnabled ? '0' : '1');                 out.print(','); // tenEnabled: інверт: 0=ON, 1=OFF
   out.print(finishFlag ? '1' : '0');                 out.print(','); // finishFlag: 1=іде, 0=кінець
-  printFloat(out, calcCubeAlcohol(cubeTemp), 1);     out.print(','); // % спирту куб
-  printFloat(out, calcColumnAlcohol(columnTemp), 1); out.print(','); // % спирту колона
+	printUptimeHMS(out);                               out.print(','); // cubeAlc -> uptime HH:MM:SS
+	printFloat(out, 0.0, 1);                           out.print(','); // columnAlc placeholder
+
+// printFloat(out, calcCubeAlcohol(cubeTemp), 1);     out.print(','); // % спирту куб
+  //printFloat(out, calcColumnAlcohol(columnTemp), 1); out.print(','); // % спирту колона
   out.println(F("%,"));                                              // кінець пакету
 }
 
+// =====================================================
+//  Read pressure sensor -> bmpPressure (Pa*100)
+// =====================================================
+static bool readBaroPressurePa100(long &outPa100) {
+#if (BARO_SENSOR == BARO_BMP180)
 
+  double bmpTempData, bmpPressData;
+
+  byte st = bmeSensor.startTemperature();
+  if (st == 0) return false;
+  delay(st);
+
+  st = bmeSensor.getTemperature(bmpTempData);
+  if (st == 0) return false;
+
+  st = bmeSensor.startPressure(3);
+  if (st == 0) return false;
+  delay(st);
+
+  st = bmeSensor.getPressure(bmpPressData, bmpTempData);
+  if (st == 0) return false;
+
+  outPa100 = (long)(bmpPressData * 100.0);
+  return true;
+
+#elif (BARO_SENSOR == BARO_BME280)
+
+  // У GyverBME280 зазвичай тиск у Паскалях
+  // (якщо у твоїй версії інші назви методів — скажи, піджену під твою)
+  float p = bmeSensor.readPressure();   // може бути Pa або hPa або kPa
+
+// нормалізуємо до Pa
+if (p < 200.0f) {          // ~95..105 (kPa)
+  p *= 1000.0f;
+} else if (p < 2000.0f) {  // ~950..1050 (hPa)
+  p *= 100.0f;
+} // інакше це вже Pa (~95000..105000)
+
+outPa100 = (long)(p * 100.0f); // Pa*100
+  return true;
+
+#endif
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  SETUP — ініціалізація при старті
@@ -1213,7 +1306,8 @@ digitalWrite(RAZGON_OUTPUT_PIN, HIGH);
 
 // A0 AVARIA/ТЕН: LOW = реле світиться = ТЕН відключений (tenEnabled=false при старті)
 pinMode(AVARIA_OUTPUT_PIN, OUTPUT);
-digitalWrite(AVARIA_OUTPUT_PIN, LOW);
+//digitalWrite(AVARIA_OUTPUT_PIN, LOW);
+digitalWrite(AVARIA_OUTPUT_PIN, HIGH);//Інверсія
   // ─── Ініціалізація шин та периферії ─────────────────────────────────────
 
   // I2C шина (для LCD та BMP180)
@@ -1228,9 +1322,13 @@ digitalWrite(AVARIA_OUTPUT_PIN, LOW);
   // Зовнішній опорний сигнал для АЦП (для точніших аналогових вимірювань)
   analogReference(EXTERNAL);
 
-  // BMP180 — датчик атмосферного тиску
+ // Датчик атмосферного тиску
+#if (BARO_SENSOR == BARO_BMP180)
   bmeSensor.begin();
-
+#elif (BARO_SENSOR == BARO_BME280)
+  // GyverBME280: старт по I2C
+  bmeSensor.begin(BME280_ADDR);
+#endif
   // Bluetooth UART (9600 бод)
   BtSerial.begin(9600);
 
@@ -1356,35 +1454,15 @@ void loop() {
   // ═══════════════════════════════════════════════════════════════════════
   // Результат: bmpPressure = тиск у Па*100 (ціле для уникнення float помилок)
   // Конвертація в мм рт.ст.: atmPressure = bmpPressure / 133.3
-  if (isTimer(bmpSensorReadTime2, 5000)) {
-    bmpSensorReadTime2 = millis();
-    double bmpTempData, bmpPressData;
-
-    // Крок 1: запускаємо вимірювання температури (потрібна для компенсації тиску)
-    tempByte = bmeSensor.startTemperature();
-    if (tempByte != 0) {
-      delay(tempByte); // Чекаємо завершення вимірювання (мс)
-
-      // Крок 2: читаємо температуру
-      tempByte = bmeSensor.getTemperature(bmpTempData);
-      if (tempByte != 0) {
-
-        // Крок 3: запускаємо вимірювання тиску (режим 3 = найвища точність)
-        tempByte = bmeSensor.startPressure(3);
-        if (tempByte != 0) {
-          delay(tempByte); // Чекаємо завершення
-
-          // Крок 4: читаємо тиск (з температурною компенсацією)
-          tempByte = bmeSensor.getPressure(bmpPressData, bmpTempData);
-          if (tempByte != 0) {
-            // Зберігаємо як ціле (Па * 100) для уникнення float drift
-            bmpPressure = (long)(bmpPressData * 100.0);
-          }
-        }
-      }
-    }
+// Датчик тиску — зчитування (кожні 5 секунд)
+// Результат: bmpPressure = Па*100
+if (isTimer(bmpSensorReadTime2, 5000)) {
+  bmpSensorReadTime2 = millis();
+  long pa100;
+  if (readBaroPressurePa100(pa100)) {
+    bmpPressure = pa100;
   }
-
+}
   // ═══════════════════════════════════════════════════════════════════════
   //  СКИДАННЯ UART БУФЕРІВ
   // ═══════════════════════════════════════════════════════════════════════
@@ -1598,7 +1676,7 @@ void loop() {
 
   // ─── Конвертація тиску BMP180 → мм рт.ст. ───────────────────────────────
   // bmpPressure зберігається як Па*100 (long) → ділимо на 133.3 для мм рт.ст.
-  atmPressure = bmpPressure / 133.3;
+ atmPressure = bmpPressure / 13332.2;             // бо 133.322 * 100
 
   // ═══════════════════════════════════════════════════════════════════════
   //  АВАРІЙНІ ПРАПОРИ
@@ -2006,8 +2084,8 @@ digitalWrite(RAZGON_OUTPUT_PIN, (tempFlag41 && tenEnabled) ? LOW : HIGH);
 // A0 — AVARIA/ТЕН
 // tenEnabled=true  + alarmFlag=1 → HIGH → реле не світиться → ТЕН працює ✅
 // tenEnabled=false або аварія    → LOW  → реле світиться → ТЕН відключений ✅
-digitalWrite(AVARIA_OUTPUT_PIN, (tenEnabled && alarmFlag) ? HIGH : LOW);
-  
+//digitalWrite(AVARIA_OUTPUT_PIN, (tenEnabled && alarmFlag) ? HIGH : LOW);
+ digitalWrite(AVARIA_OUTPUT_PIN, (tenEnabled && alarmFlag) ? LOW : HIGH); // Інверсія
   
  //частина7 
   
@@ -2134,14 +2212,14 @@ digitalWrite(AVARIA_OUTPUT_PIN, (tenEnabled && alarmFlag) ? HIGH : LOW);
   // Примітка: стани END DISTILLATION та !STOP AVAR STOP!
   // перезаписують рядок нижче після цього блоку
 
-  if (!tenEnabled) {
+  
     // ── ТЕН ВИМКНЕНИЙ ────────────────────────────────────────────────────
     // Показуємо "TEN OFF" (тільки якщо ще не показано)
-    if (strcmp(tempStr11Buf, "TEN OFF") != 0) {
-      tempFlag31 = 1; // Потрібно оновити LCD
-      strncpy(tempStr11Buf, "TEN OFF", sizeof(tempStr11Buf) - 1);
-      tempStr11Buf[sizeof(tempStr11Buf) - 1] = '\0';
-    }
+if (!tenEnabled) {
+    strncpy(tempStr11Buf, "TEN OFF", sizeof(tempStr11Buf) - 1);
+    tempStr11Buf[sizeof(tempStr11Buf) - 1] = '\0';
+    tempFlag31 = 1;
+
 
   } else if (tempFlag33 == 1) {
     // ── АВТО РЕЖИМ (ESP керує ШІМ автоматично) ───────────────────────────
