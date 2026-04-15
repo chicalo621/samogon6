@@ -58,7 +58,7 @@
 #define BARO_BMP180  1
 #define BARO_BME280  2
 
-#define BARO_SENSOR  BARO_BMP180     // <-- тут перемикаєш перед прошивкою
+#define BARO_SENSOR  BARO_BME280     // <-- тут перемикаєш перед прошивкою
 
 // для BME280 (I2C адреса найчастіше 0x76 або 0x77)
 #define BME280_ADDR  0x76
@@ -80,8 +80,8 @@
 #define SOFT_SERIAL_TX_PIN      11   // Bluetooth TX
 #define SOFT_SERIAL_RX_PIN      12   // Bluetooth RX
 #define RAIN_LEAK_INPUT_PIN     9    // Датчик протічки: LOW=протічка (PULLUP)
-#define ENCODER_CLK             2    // Енкодер CLK
-#define ENCODER_DT              4    // Енкодер DT
+#define ENCODER_CLK             4    // Енкодер CLK
+#define ENCODER_DT              2    // Енкодер DT
 #define ENCODER_SW              5    // Енкодер кнопка SW
 
 // ─── Константи ───────────────────────────────────────────────────────────────
@@ -873,7 +873,7 @@ void displayMenu() {
   }
 }
 
-// ─── Обробка енкодера: навігація по меню та редагування значень ──────────────
+/* // ─── Обробка енкодера: навігація по меню та редагування значень ──────────────
 void handleEncoderMenu() {
   // ── Подвійний клік — увімкнути/вимкнути меню ──────────────────────────
   if (enc.hasClicks(2)) {
@@ -990,7 +990,160 @@ if (!encoderMenuActive && enc.click()) {
     if (item.onConfirm) item.onConfirm();
   }
 }//  UART ПРИЙОМ
-// ═══════════════════════════════════════════════════════════════════════════
+ */
+ // ─── Обробка енкодера: навігація по меню та редагування значень ──────────────
+void handleEncoderMenu() {
+
+  // ── HOLD поза меню — ВХІД у меню ─────────────────────────────────────────
+  // (замість enc.hasClicks(2))
+  if (!encoderMenuActive && enc.hold()) {
+    encoderMenuActive = true;
+    menuLevel     = MAIN_MENU;
+    editMode      = false;
+    mainMenuIndex = 0;
+    subMenuIndex  = 0;
+
+    // Входимо в меню → показуємо меню
+    displayMenu();
+    return;
+  }
+
+  // ── HOLD в головному меню — ВИХІД з меню ──────────────────────────────────
+  // ВАЖЛИВО:
+  //   Вихід робимо ТІЛЬКИ з MAIN_MENU, щоб не конфліктувати з hold у SUB_MENU,
+  //   де hold використовується для editMode/confirm.
+  if (encoderMenuActive && (menuLevel == MAIN_MENU) && enc.hold()) {
+    encoderMenuActive = false;
+
+    // ВИХОДИМО з меню → очищаємо і одразу перемальовуємо обидва рядки
+    mainDisplay.clear();
+    tempFlag5  = 1; // Примусово оновити рядок 1 (температури)
+    tempFlag31 = 1; // Примусово оновити рядок 2 (стан)
+
+    // Скидаємо старі довжини щоб не було помилкового needClearDisplay
+    dispOldLength  = 0;
+    dispOldLength3 = 0;
+
+    return;
+  }
+
+  // ── 1 клік поза меню — перемикання ТЕН ────────────────────────────────────
+  if (!encoderMenuActive && enc.click()) {
+    tenEnabled = !tenEnabled;
+    if (!tenEnabled) {
+      tempInt2   = 0;
+      tempFlag33 = 0;
+
+      // ДОДАТКОВО: завжди записуємо текст TEN OFF та прапор оновлення!
+      strncpy(tempStr11Buf, "TEN OFF", sizeof(tempStr11Buf) - 1);
+      tempStr11Buf[sizeof(tempStr11Buf) - 1] = '\0';
+      tempFlag31 = 1;
+    } else {
+      tempFlag31 = 1; // дозволити перемальовувати й при включенні ТЕНА
+    }
+    return;
+  }
+
+  // Якщо меню не активне — далі не обробляємо навігацію
+  if (!encoderMenuActive) return;
+
+  // ── Головне меню ─────────────────────────────────────────────────────────
+  if (menuLevel == MAIN_MENU) {
+    uint8_t count = 2;
+
+    if (enc.right()) { mainMenuIndex = (mainMenuIndex + 1) % count; displayMenu(); }
+    if (enc.left())  { mainMenuIndex = (mainMenuIndex - 1 + count) % count; displayMenu(); }
+
+    if (enc.click()) {
+      menuLevel    = SUB_MENU;
+      editMode     = false;
+      subMenuIndex = 0;
+      displayMenu();
+    }
+    return;
+  }
+
+  // ── Підменю ──────────────────────────────────────────────────────────────
+  MenuSection currentSection = (mainMenuIndex == 0) ? MENU_SETUP : MENU_WORK;
+  uint8_t sectionCount = getSectionCount(currentSection);
+
+  // ── HOLD у підменю — режим редагування (toggle) ───────────────────────────
+  // Перший hold: увійти/вийти з editMode
+  if (enc.hold()) { editMode = !editMode; displayMenu(); return; }
+
+  if (!editMode) {
+    // ── Навігація по пунктах підменю ───────────────────────────────────────
+    if (enc.right()) { subMenuIndex = (subMenuIndex + 1) % sectionCount; displayMenu(); }
+    if (enc.left())  { subMenuIndex = (subMenuIndex - 1 + sectionCount) % sectionCount; displayMenu(); }
+
+    // 1 клік у підменю (без editMode) — повернення в головне меню
+    if (enc.click()) {
+      menuLevel = MAIN_MENU;
+      editMode  = false;
+      displayMenu();
+    }
+    return;
+  }
+
+  // ── Режим редагування ────────────────────────────────────────────────────
+  int8_t menuItemIndex = getMenuItemIndex(currentSection, subMenuIndex);
+  if (menuItemIndex < 0 || menuItemIndex >= MENU_ITEMS_COUNT) return;
+
+  MenuItem &item = menuItems[menuItemIndex];
+  bool changed = false;
+
+  if (enc.right()) {
+    switch (item.valueType) {
+      case TYPE_INT:
+        *(int*)item.valuePtr += (int)item.step;
+        if (*(int*)item.valuePtr > (int)item.maxVal) *(int*)item.valuePtr = (int)item.maxVal;
+        changed = true;
+        break;
+
+      case TYPE_FLOAT:
+        *(float*)item.valuePtr += item.step;
+        if (*(float*)item.valuePtr > item.maxVal) *(float*)item.valuePtr = item.maxVal;
+        changed = true;
+        break;
+
+      case TYPE_BOOL:
+        *(bool*)item.valuePtr = !*(bool*)item.valuePtr;
+        changed = true;
+        break;
+    }
+  }
+
+  if (enc.left()) {
+    switch (item.valueType) {
+      case TYPE_INT:
+        *(int*)item.valuePtr -= (int)item.step;
+        if (*(int*)item.valuePtr < (int)item.minVal) *(int*)item.valuePtr = (int)item.minVal;
+        changed = true;
+        break;
+
+      case TYPE_FLOAT:
+        *(float*)item.valuePtr -= item.step;
+        if (*(float*)item.valuePtr < item.minVal) *(float*)item.valuePtr = item.minVal;
+        changed = true;
+        break;
+
+      case TYPE_BOOL:
+        // Для bool ліво/право однаково: toggle робимо в enc.right()
+        break;
+    }
+  }
+
+  if (changed) displayMenu();
+
+  // ── HOLD у режимі редагування — підтвердження (confirm) ────────────────────
+  // Другий hold: вихід з editMode + callback (якщо є)
+  if (enc.hold()) {
+    editMode = false;
+    displayMenu();
+    if (item.onConfirm) item.onConfirm();
+  }
+}
+ // ═══════════════════════════════════════════════════════════════════════════
 
 // ─── Запис одного байту у відповідний буфер ──────────────────────────────────
 // port=0   → Serial (USB/WiFi)
@@ -1225,7 +1378,7 @@ void sendDataPacketwifi(Print &out) {
   out.print(tenEnabled ? '0' : '1');                 out.print(','); // tenEnabled: інверт: 0=ON, 1=OFF
   out.print(finishFlag ? '1' : '0');                 out.print(','); // finishFlag: 1=іде, 0=кінець
 	printUptimeHMS(out);                               out.print(','); // cubeAlc -> uptime HH:MM:SS
-	printFloat(out, 0.0, 1);                           out.print(','); // columnAlc placeholder
+	out.print(tempFlag41 ? '1' : '0');                          out.print(','); // columnAlc placeholder
 
 // printFloat(out, calcCubeAlcohol(cubeTemp), 1);     out.print(','); // % спирту куб
   //printFloat(out, calcColumnAlcohol(columnTemp), 1); out.print(','); // % спирту колона
@@ -1254,7 +1407,7 @@ static bool readBaroPressurePa100(long &outPa100) {
   st = bmeSensor.getPressure(bmpPressData, bmpTempData);
   if (st == 0) return false;
 
-  outPa100 = (long)(bmpPressData * 100.0);
+  outPa100 = (long)(bmpPressData * 10000.0);
   return true;
 
 #elif (BARO_SENSOR == BARO_BME280)
