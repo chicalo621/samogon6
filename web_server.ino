@@ -262,12 +262,14 @@ Serial.println("[save_wifi] scheduled AP switch in loop()");
     // Відповідь після завершення завантаження
     [](AsyncWebServerRequest *request) {
       bool success = !Update.hasError();
-      request->send(200, "application/json",
-        success ? "{\"status\":\"ok\",\"msg\":\"Оновлення успішне! Перезавантаження...\"}"
-                : "{\"status\":\"error\",\"msg\":\"Помилка оновлення\"}");
       if (success) {
-        delay(1000);
-        ESP.restart();
+        request->send(200, "application/json",
+          "{\"status\":\"ok\",\"msg\":\"Оновлення успішне! Перезавантаження...\"}");
+        schedule_function([]() { ESP.restart(); });
+      } else {
+        String errMsg = "{\"status\":\"error\",\"msg\":\"Помилка оновлення, код: "
+                        + String(Update.getError()) + "\"}";
+        request->send(200, "application/json", errMsg);
       }
     },
     // Обробка чанків файлу під час завантаження
@@ -276,12 +278,13 @@ Serial.println("[save_wifi] scheduled AP switch in loop()");
         Serial1.println("[OTA-WEB] Старт: " + filename);
         uint32_t maxSketchSpace = (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
         if (!Update.begin(maxSketchSpace, U_FLASH)) {
-          Serial1.println("[OTA-WEB] Update.begin() помилка");
+          Serial1.printf("[OTA-WEB] Update.begin() помилка: %d\n", Update.getError());
+          return;
         }
       }
       if (len) {
         if (Update.write(data, len) != len) {
-          Serial1.println("[OTA-WEB] Помилка запису");
+          Serial1.printf("[OTA-WEB] Помилка запису: %d\n", Update.getError());
         }
       }
       if (final) {
