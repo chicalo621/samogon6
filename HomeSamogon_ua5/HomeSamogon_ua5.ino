@@ -199,9 +199,10 @@ float columnPeripheralSwitchTemp = 40; // Температура колони (�
 long  peripheralOffDelayMs = 300000;   // Затримка (мс=5хв) після кінця перегонки перед вимк. води
 bool  invertPeripheralOutput = 0;      // true = інверсія виходу A2 (LOW=вода увімкнена)
 bool  invertRazgonOutput     = 0;      // true = інверсія виходу A1 (LOW=розгін увімкнений)
-bool  invertWorkOutput       = 0;      // true = інверсія виходу роботи (не використовується)
+//bool  invertWorkOutput       = 0;      // true = інверсія виходу роботи (не використовується)
 bool  invertAlarmOutput      = 0;      // false = НЕ інвертуємо AVARIA (HIGH=аварія)
 
+// ─── Параметри дисплея ───────────────────────────────────────────────────────
 // ─── Параметри дисплея ───────────────────────────────────────────────────────
 bool displayMiddleMode = 1; // true = у середині рядка 1 показувати alarmTemp
                             // false = показувати atmPressure
@@ -268,7 +269,7 @@ bool finishFlag2 = 0; // УМОВА ЗАВЕРШЕННЯ:
 
 // ─── Допоміжні прапори стану ─────────────────────────────────────────────────
 bool tempFlag28 = 0; // Прапор: timer7 спрацював І немає аварії (не використовується активно)
-bool tempFlag20 = 1; // Прапор дозволу роботи (скидається при аварії)
+//bool tempFlag20 = 1; // Прапор дозволу роботи (скидається при аварії)
 bool tempFlag41 = 0; // РОЗГІН: true = умови розгону виконані (колона холодна + норма + ТЕН ON)
                      //   tempFlag41=1 → A1=LOW (розгін увімкнений, з інверсією)
                      //   tempFlag41=0 → A1=HIGH (розгін вимкнений)
@@ -391,8 +392,8 @@ int   tempInt   = 0; // Тимчасове ціле
 float tempFloat = 0; // Тимчасовий float
 
 // ─── Програмний ШІМ клапана (для controlMode=1) ─────────────────────────────
-unsigned long valvePwmLastTime = 0;    // Час останнього перемикання softwarePWM (мкс)
-bool          valvePwmState    = false;// Поточний стан виходу softwarePWM (true=HIGH)
+//unsigned long valvePwmLastTime = 0;    // Час останнього перемикання softwarePWM (мкс)
+//bool          valvePwmState    = false;// Поточний стан виходу softwarePWM (true=HIGH)
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  ТИПИ ТА ОГОЛОШЕННЯ ВПЕРЕД
@@ -1909,7 +1910,7 @@ if (isTimer(bmpSensorReadTime2, 5000)) {
     // ШІМ ге��ератор зупинений
     // Всі ШІМ прапори скинуті
     digitalWrite(VALVE_RELAY_DIRECT_PIN, HIGH); // Клапан ЗАКРИТИЙ
-    valvePwmState  = false;
+   // valvePwmState  = false;
     pwmCoarseFlag  = 0;
     pwmFineFlag    = 0;
 
@@ -2020,7 +2021,7 @@ if (isTimer(bmpSensorReadTime2, 5000)) {
       // Режим 0: дискретне реле (LOW=відкритий, HIGH=закритий)
       // Інверсія: switchFlag9=true → LOW (відкритий)
       digitalWrite(VALVE_RELAY_DIRECT_PIN, !(switchFlag9));
-      valvePwmState = false;
+      //valvePwmState = false;
     }
   }
 
@@ -2467,7 +2468,7 @@ if (alarmFlag == 0) {
   tempInt2      = 0;
   pwmCoarseFlag = 0;
   pwmFineFlag   = 0;
-  tempFlag20    = 0;
+ // tempFlag20    = 0;
   tempFlag30    = 0;
   finishFlag    = 0;
   tenEnabled    = false; // → A0=LOW → реле світиться → ТЕН відключений ✅
@@ -2735,7 +2736,7 @@ bool isValidAddress(uint8_t* addr) {
 //
 // Використовує micros() для точності (не millis())
 // Не блокує loop() — перевіряє час і перемикає якщо потрібно
-void softwarePWM(uint8_t pin, uint8_t value, uint16_t freq_hz,
+/* void softwarePWM(uint8_t pin, uint8_t value, uint16_t freq_hz,
                  unsigned long &lastTime, bool &state) {
   // Розраховуємо тривалість одного повного циклу (мкс)
   unsigned long period   = 1000000UL / freq_hz;
@@ -2761,9 +2762,13 @@ void softwarePWM(uint8_t pin, uint8_t value, uint16_t freq_hz,
       state    = true;
     }
   }
-}
+} */
 void extendmotor() {
-  if (controlMode != 1) return;  // Interrupt тільки для ШІМ (motor mode)
+  if (controlMode != 1 || !tenEnabled || alarmFlag == 0) {
+    digitalWrite(VALVE_RELAY_DIRECT_PIN, HIGH);  // Надійно закрити клапан
+    return;  // Вихід з функції, якщо умова справджується
+  }
+  // Решта виконується ТІЛЬКИ якщо умова НЕ справджується
   static uint16_t counter = 0;
   uint16_t maxCount = pwmPeriodUs / 100;  // 100 для 100 Гц
   uint16_t dutyCount = (tempInt2 * maxCount) / 1023;  // Використовуємо tempInt2 напряму
@@ -2772,4 +2777,4 @@ void extendmotor() {
   if (counter >= maxCount) counter = 0;
 
   digitalWrite(VALVE_RELAY_DIRECT_PIN, (counter < dutyCount) ? HIGH : LOW);
-}					
+}
