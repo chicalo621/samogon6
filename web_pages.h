@@ -4,9 +4,9 @@
 #pragma once
 #include <Arduino.h>
 
-// ═══════════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
 //  Головна сторінка — статус + посилання на налаштування
-// ═══════════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
 const char MAIN_PAGE[] PROGMEM = R"=====(<!doctype html><html><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Samogon</title>
@@ -81,16 +81,19 @@ window.onload=uD;
 <div class="row"><span class="lbl">Час роботи:</span><span id="uptime" class="val">---</span></div>
 </div>
 <div style="text-align:center;margin:15px 0">
-<a href="/settings" class="b">⚙ Налаштування</a>
-<a href="/send" class="b">📤 Відправити</a>
-<a href="/update" class="b">🔄 Оновлення</a>
+ <a href="/settings" class="b">⚙ Налаштування</a>
+ <a href="/send" class="b">📤 Відправити</a>
+ <a href="/automation" class="b">🤖 Автоматизація</a>
+ <a href="/update" class="b">🔄 Оновлення</a>
 </div>
+
 </div>
 </body></html>)=====";
 
-// ═══════════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
 //  Сторінка відправки Serial / MQTT команд
-// ═══════════════════════════════════════════════════════════════════════════
+//  (додано: статичні підказки реальних команд + helper для cmd topics)
+// ════════════════════════════════════════════════════════════════
 const char SEND_PAGE[] PROGMEM = R"=====(<!doctype html><html><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Відправити</title>
@@ -101,62 +104,220 @@ body{font-family:Arial,sans-serif;background:#121212;color:#eee;margin:0;padding
 h1{text-align:center;color:#4CAF50}
 .d{background:#1e1e1e;border-radius:10px;padding:15px;margin:10px 0}
 .hdr{color:#4CAF50;font-size:1.1em;margin:10px 0 8px;font-weight:bold}
-input[type=text],textarea{width:100%;padding:10px;background:#333;color:#eee;border:1px solid #444;border-radius:5px;font-size:1em;margin:5px 0}
+input[type=text],textarea,select{width:100%;padding:10px;background:#333;color:#eee;border:1px solid #444;border-radius:5px;font-size:1em;margin:5px 0}
 textarea{height:60px;resize:vertical;font-family:monospace}
 .b{display:inline-block;background:#4CAF50;border:0;padding:10px 20px;border-radius:5px;cursor:pointer;color:#fff;text-decoration:none;font-size:1em;margin:5px}
 .b:hover{background:#45a049}
-.log{background:#0a0a0a;border-radius:5px;padding:10px;margin:8px 0;font-family:monospace;font-size:.85em;max-height:150px;overflow-y:auto;color:#888}
+.log{background:#0a0a0a;border-radius:5px;padding:10px;margin:8px 0;font-family:monospace;font-size:.85em;max-height:170px;overflow-y:auto;color:#888}
 .ok{color:#2ecc71}.err{color:#e74c3c}
+
+/* chips */
+.cmds{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.chip{background:#2b2b2b;border:1px solid #444;color:#eee;padding:6px 10px;border-radius:999px;cursor:pointer;font-family:monospace;font-size:.85em}
+.chip:hover{border-color:#4CAF50}
+.small{color:#888;font-size:.85em;margin-top:6px}
+.hr{border-top:1px solid #333;margin:12px 0}
 </style>
+
 <script>
 function sendSerial(){
-var cmd=document.getElementById('scmd').value;
-if(!cmd)return;
-fetch('/api/serial_send?cmd='+encodeURIComponent(cmd)).then(r=>r.text()).then(t=>{
-addLog('Serial TX: '+cmd,'ok');
-document.getElementById('scmd').value='';
-}).catch(e=>addLog('Помилка: '+e,'err'));
+  var cmd=document.getElementById('scmd').value;
+  if(!cmd)return;
+  fetch('/api/serial_send?cmd='+encodeURIComponent(cmd)).then(r=>r.text()).then(t=>{
+    addLog('Serial TX: '+cmd,'ok');
+    document.getElementById('scmd').value='';
+  }).catch(e=>addLog('Помилка: '+e,'err'));
 }
+
 function sendMqtt(){
-var t=document.getElementById('mtopic').value;
-var p=document.getElementById('mpayload').value;
-if(!t)return;
-fetch('/api/mqtt_pub?topic='+encodeURIComponent(t)+'&payload='+encodeURIComponent(p)).then(r=>r.text()).then(txt=>{
-addLog('MQTT PUB: '+t+' = '+p,'ok');
-}).catch(e=>addLog('Помилка: '+e,'err'));
+  var t=document.getElementById('mtopic').value;
+  var p=document.getElementById('mpayload').value;
+  if(!t)return;
+  fetch('/api/mqtt_pub?topic='+encodeURIComponent(t)+'&payload='+encodeURIComponent(p)).then(r=>r.text()).then(txt=>{
+    addLog('MQTT PUB: '+t+' = '+p,'ok');
+  }).catch(e=>addLog('Помилка: '+e,'err'));
 }
+
 function addLog(msg,cls){
-var l=document.getElementById('log');
-l.innerHTML='<div class="'+cls+'">'+msg+'</div>'+l.innerHTML;
+  var l=document.getElementById('log');
+  l.innerHTML='<div class="'+cls+'">'+escapeHtml(msg)+'</div>'+l.innerHTML;
 }
+
+// ---------------------------
+// Реальні команди з serial_comm.ino (setArduinoCommand)
+// ---------------------------
+const SERIAL_EXAMPLES = [
+  {cmd:"water=1",          hint:"Вода: увімкнути (0/1)"},
+  {cmd:"water=0",          hint:"Вода: вимкнути"},
+  {cmd:"shim=440",         hint:"ШІМ клапана (0..1023)"},
+  {cmd:"PUBalarmLimit=110.00", hint:"Темп. сигналізації"},
+  {cmd:"autoEnd=32.5",     hint:"Авто: дельта стоп (буфер)"},
+  {cmd:"autoStart=22.5",   hint:"Авто: дельта старт (буфер)"},
+  {cmd:"autoMode=1",       hint:"Авто режим: увімкнути (потрібні autoEnd+autoStart)"},
+  {cmd:"autoMode=0",       hint:"Авто режим: вимкнути"},
+  {cmd:"start=90",         hint:"Старт-стоп: start (потрібен stop)"},
+  {cmd:"stop=80",          hint:"Старт-стоп: stop (потрібен start)"},
+  {cmd:"display=0",        hint:"Дисплей центр: 0/1/2"},
+  {cmd:"display=1",        hint:"Дисплей центр: 0/1/2"},
+  {cmd:"display=2",        hint:"Дисплей центр: 0/1/2"},
+  {cmd:"Periodkl=500",     hint:"Період клапана (мс)"},
+  {cmd:"pwmFinish=40",     hint:"Фініш: % відкриття клапана (0..100)"},
+  {cmd:"cubeFinish=98.5",  hint:"Фініш: температура куба"},
+  {cmd:"tenControl=1",     hint:"ТЕН: увімкнути (0/1)"},
+  {cmd:"tenControl=0",     hint:"ТЕН: вимкнути"},
+  {cmd:"raw=^1$",          hint:"Raw (відправляє value як є в Serial)"},
+];
+
+// Реальні keys для MQTT .../cmd/{key}
+const MQTT_CMD_KEYS = [
+  {key:"water",        payload:"1",      hint:"0/1 — вода"},
+  {key:"shim",         payload:"440",    hint:"0..1023 — ШІМ"},
+  {key:"PUBalarmLimit",payload:"110.00", hint:"темп. сигналізації"},
+  {key:"autoEnd",      payload:"32.5",   hint:"дельта стоп (буфер)"},
+  {key:"autoStart",    payload:"22.5",   hint:"дельта старт (буфер)"},
+  {key:"autoMode",     payload:"1",      hint:"0/1 — авто режим"},
+  {key:"start",        payload:"90",     hint:"start (пара з stop)"},
+  {key:"stop",         payload:"80",     hint:"stop (пара з start)"},
+  {key:"display",      payload:"0",      hint:"0/1/2 — центр дисплея"},
+  {key:"Periodkl",     payload:"500",    hint:"період клапана (мс)"},
+  {key:"pwmFinish",    payload:"40",     hint:"0..100 — % фінішу"},
+  {key:"cubeFinish",   payload:"98.5",   hint:"темп. куба фінішу"},
+  {key:"tenControl",   payload:"1",      hint:"0/1 — ТЕН"},
+  {key:"raw",          payload:"^1$",    hint:"raw-команда в Serial (через key=raw)"},
+];
+
+function escapeHtml(s){
+  return String(s)
+    .replaceAll('&','&amp;')
+    .replaceAll('<','&lt;')
+    .replaceAll('>','&gt;')
+    .replaceAll('"','&quot;');
+}
+function escapeJs(s){
+  return String(s).replaceAll('\\','\\\\').replaceAll("'","\\'");
+}
+
+function setSerialCmd(cmd){
+  document.getElementById('scmd').value = cmd;
+}
+
+function renderSerialChips(){
+  var box = document.getElementById('serial_cmds');
+  if(!box) return;
+
+  var html = '';
+  for(var i=0;i<SERIAL_EXAMPLES.length;i++){
+    var c = SERIAL_EXAMPLES[i];
+    html += '<span class="chip" title="'+escapeHtml(c.hint)+'" onclick="setSerialCmd(\''+escapeJs(c.cmd)+'\')">'+escapeHtml(c.cmd)+'</span>';
+  }
+  box.innerHTML = html;
+}
+
+// MQTT helper: базовий cmd topic + key -> topic
+function mqttFillFromKey(){
+  var base = (document.getElementById('mqtt_base')||{}).value || '';
+  base = base.trim().replace(/\/+$/,''); // прибрати /
+  var sel = document.getElementById('mqtt_key_select');
+  if(!sel) return;
+  var key = sel.value || '';
+  if(!key) return;
+
+  // знайти payload template
+  var payload = '';
+  var hint = '';
+  for(var i=0;i<MQTT_CMD_KEYS.length;i++){
+    if(MQTT_CMD_KEYS[i].key === key){
+      payload = MQTT_CMD_KEYS[i].payload;
+      hint = MQTT_CMD_KEYS[i].hint;
+      break;
+    }
+  }
+
+  if(base.length){
+    document.getElementById('mtopic').value = base + '/' + key;
+  } else {
+    // якщо base пустий — просто ключ як є (але це вже "ручний режим")
+    document.getElementById('mtopic').value = key;
+  }
+  document.getElementById('mpayload').value = payload;
+
+  var h = document.getElementById('mqtt_hint');
+  if(h){
+    h.innerText = hint ? ('Підказка: ' + hint) : '';
+  }
+}
+
+function renderMqttKeys(){
+  var sel = document.getElementById('mqtt_key_select');
+  if(!sel) return;
+
+  var html = '';
+  for(var i=0;i<MQTT_CMD_KEYS.length;i++){
+    var k = MQTT_CMD_KEYS[i];
+    html += '<option value="'+escapeHtml(k.key)+'">'+escapeHtml(k.key)+'</option>';
+  }
+  sel.innerHTML = html;
+  sel.value = MQTT_CMD_KEYS.length ? MQTT_CMD_KEYS[0].key : '';
+  mqttFillFromKey();
+}
+
+window.addEventListener('load', function(){
+  try{
+    renderSerialChips();
+    renderMqttKeys();
+  }catch(e){}
+});
 </script>
+
 </head><body>
 <div class="c">
 <h1>📤 Відправити</h1>
+
 <div class="d">
-<div class="hdr">📟 Serial команда</div>
-<input type="text" id="scmd" placeholder="Введіть команду для Serial...">
-<button class="b" onclick="sendSerial()">Відправити в Serial</button>
+  <div class="hdr">📟 Serial команда</div>
+  <input type="text" id="scmd" placeholder="Введіть команду для Serial... (key=value або raw)">
+  <button class="b" onclick="sendSerial()">Відправити в Serial</button>
+
+  <div class="small">Підказки (реальні команди з прошивки). Клік — підставити в поле:</div>
+  <div class="cmds" id="serial_cmds"></div>
 </div>
+
 <div class="d">
-<div class="hdr">📡 MQTT публікація</div>
-<input type="text" id="mtopic" placeholder="Топік (наприклад bridge/cmd/power)">
-<input type="text" id="mpayload" placeholder="Payload (значення)">
-<button class="b" onclick="sendMqtt()">Публікувати в MQTT</button>
+  <div class="hdr">📡 MQTT публікація</div>
+
+  <div class="small">MQTT helper для командного топіка (mqttSubTopic):</div>
+  <input type="text" id="mqtt_base" placeholder="Base cmd topic (mqttSubTopic), напр: 380991234567/1/samogon/cmd">
+
+  <select id="mqtt_key_select" onchange="mqttFillFromKey()"></select>
+  <div class="small" id="mqtt_hint"></div>
+
+  <div class="hr"></div>
+
+  <input type="text" id="mtopic" placeholder="Топік">
+  <input type="text" id="mpayload" placeholder="Payload (значення)">
+  <button class="b" onclick="sendMqtt()">Публікувати в MQTT</button>
+
+  <div class="small">
+    Примітка: прошивка слухає саме <b>mqttSubTopic</b> та <b>mqttSubTopic/#</b>.
+    Якщо тут опублікуєш у цей base — команда піде в Serial як <code>{key}={payload}</code>.
+  </div>
 </div>
+
 <div class="d">
-<div class="hdr">📋 Лог</div>
-<div class="log" id="log"><div style="color:#555">тут будуть відповіді...</div></div>
+  <div class="hdr">📋 Лог</div>
+  <div class="log" id="log"><div style="color:#555">тут будуть відповіді...</div></div>
 </div>
+
 <div style="text-align:center;margin:15px 0">
-<a href="/" class="b">← Назад</a>
+  <a href="/" class="b">← Назад</a>
 </div>
+
 </div>
 </body></html>)=====";
 
-// ═══════════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
 //  Сторінка налаштувань (WiFi + MQTT) з табами
-// ═══════════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
 const char SETTINGS_PAGE[] PROGMEM = R"=====(<!doctype html><html><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Налаштування</title>
@@ -409,9 +570,9 @@ window.onload=function(){
 </div>
 </body></html>)=====";
 
-// ═══════════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
 //  Сторінка OTA оновлення прошивки через веб
-// ═══════════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
 const char OTA_PAGE[] PROGMEM = R"=====(<!doctype html><html><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Оновлення прошивки</title>
@@ -493,7 +654,7 @@ else{info.innerText='';}
 </body></html>)=====";
 
 // ═══════════════════════════════════════════════════════════════════════════
-//  Сторінка автоматизації
+//  Сторінка автоматизації (LIVE telemetry + commands)
 // ═══════════════════════════════════════════════════════════════════════════
 const char AUTOMATION_PAGE[] PROGMEM = R"HTML(
 <!DOCTYPE html>
@@ -501,127 +662,386 @@ const char AUTOMATION_PAGE[] PROGMEM = R"HTML(
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Автоматика Arduino</title>
+  <title>Автоматика</title>
   <style>
-    body { font-family: Arial, sans-serif; background: #f5f5f5; margin: 0; }
-    .header { background: #7a2222; color: #fff; padding: 12px 16px; font-size: 1.3em; display: flex; align-items: center; }
-    .header .menu { margin-right: 12px; }
-    .status-bar { display: flex; justify-content: space-between; padding: 8px 16px; background: #fff; }
-    .status-block { text-align: center; flex: 1; margin: 0 4px; }
-    .status-block .label { font-size: 0.9em; color: #888; }
-    .status-block .value { font-size: 1.2em; color: #1a1a1a; }
-    .controls { background: #fff; margin: 12px 8px; border-radius: 8px; padding: 12px; box-shadow: 0 2px 8px #ddd; }
-    .sliders { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-    .slider-block { flex: 1; text-align: center; }
-    .slider-block label { display: block; font-size: 0.9em; margin-bottom: 4px; }
-    .slider-block input[type=range] { width: 80%; }
-    .percent { font-size: 1.1em; margin-bottom: 8px; text-align: center; }
-    .checkmark { display: inline-block; background: #eee; border-radius: 8px; padding: 8px 16px; color: #2a7; font-size: 1.2em; cursor: pointer; margin-left: 12px; }
-    .main-temp-block { background: #fff; margin: 12px 8px; border-radius: 8px; padding: 16px; box-shadow: 0 2px 8px #ddd; text-align: center; }
-    .main-temp { font-size: 2.2em; color: #0055cc; margin: 8px 0; }
-    .stop-start { display: flex; justify-content: space-between; margin-bottom: 8px; }
-    .stop-start span { font-size: 1.1em; color: #0055cc; }
-    .icon-row { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; }
-    .icon { font-size: 2em; }
-    .icon.valve { color: #a22; }
-    .icon.power { color: #1a7a1a; }
-    .input-box { width: 60px; padding: 4px; font-size: 1em; margin: 0 8px; }
-    .info-row { display: flex; justify-content: space-between; align-items: center; margin: 12px 8px; }
-    .info-btn, .refresh-btn { background: #0055cc; color: #fff; border: none; border-radius: 8px; padding: 8px 16px; font-size: 1em; cursor: pointer; }
-    .checkbox-row { margin: 12px 8px; }
-    .expand-section { background: #fff; margin: 12px 8px; border-radius: 8px; padding: 12px; box-shadow: 0 2px 8px #ddd; }
-    .expand-section label { display: block; margin-bottom: 6px; font-size: 1em; }
-    .expand-section input[type=checkbox] { margin-right: 8px; }
-    .expand-section .input-box { width: 80px; }
-    .expand-section .checkmark { margin-left: 8px; }
-    .expand-section .info-btn { margin-top: 8px; }
-    .expand-section .select-btn { background: #aaa; color: #fff; border: none; border-radius: 8px; padding: 8px 16px; font-size: 1em; cursor: pointer; margin-top: 8px; }
+    *{box-sizing:border-box}
+    body{font-family:Arial,sans-serif;background:#f5f5f5;margin:0}
+    .header{background:#7a2222;color:#fff;padding:12px 16px;font-size:1.2em;display:flex;align-items:center;justify-content:space-between}
+    .header .menu{cursor:pointer;margin-right:10px}
+    .wrap{max-width:920px;margin:0 auto}
+    .statusbar{display:flex;flex-wrap:wrap;gap:10px;padding:10px}
+    .card{background:#fff;border-radius:12px;padding:12px;box-shadow:0 2px 10px rgba(0,0,0,.08);flex:1;min-width:170px}
+    .label{color:#777;font-size:.9em}
+    .value{font-size:1.3em;font-weight:700;color:#111;margin-top:4px}
+    .pill{display:inline-block;padding:4px 10px;border-radius:999px;font-weight:700;font-size:.85em;border:1px solid transparent}
+    .ok{background:#e8ffe8;color:#167c16;border-color:#bfe8bf}
+    .bad{background:#ffe8e8;color:#a11;border-color:#f0bcbc}
+    .mid{background:#eef2ff;color:#224;border-color:#d7dcff}
+    .row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:center}
+    .controls{padding:10px}
+    .btn{border:0;border-radius:12px;padding:10px 14px;background:#0055cc;color:#fff;font-size:1em;cursor:pointer}
+    .btn.gray{background:#666}
+    .btn.red{background:#b11}
+    .btn.green{background:#1a7a1a}
+    .btn:active{transform:scale(.99)}
+    .inp{padding:10px;border-radius:10px;border:1px solid #ddd;font-size:1em;min-width:120px}
+    input[type=range]{width:260px}
+    .log{margin:10px;background:#111;color:#ddd;border-radius:12px;padding:10px;font-family:monospace;max-height:180px;overflow:auto}
+    .log .tx{color:#2ecc71}
+    .log .rx{color:#77aaff}
+    .log .err{color:#ff6666}
+    .small{font-size:.85em;color:#666}
+    .section{padding:0 10px 10px}
+    details{margin:10px}
+    summary{cursor:pointer;font-weight:700}
   </style>
 </head>
 <body>
   <div class="header">
-    <span class="menu">&#9776;</span>
-    Автоматика Arduino
-  </div>
-  <div class="status-bar">
-    <div class="status-block">
-      <div class="label">Температура</div>
-      <div class="value" id="mainTemp">23.6°C</div>
+    <div>
+      <span class="menu" id="homeBtn">&#9776;</span>
+      Автоматика
     </div>
-    <div class="status-block">
-      <div class="label">Тиск</div>
-      <div class="value" id="pressure">727.1мм</div>
-    </div>
-    <div class="status-block">
-      <div class="label">Автоматика ver4.8</div>
-      <div class="value" id="version">23.3°C</div>
+    <div>
+      <span id="dataPill" class="pill bad">NO DATA</span>
     </div>
   </div>
-  <div class="controls">
-    <div class="percent" id="percent">- 77.0%</div>
-    <div class="sliders">
-      <div class="slider-block">
-        <label>грубо</label>
-        <input type="range" min="0" max="100" value="50" id="coarseSlider">
+
+  <div class="wrap">
+
+    <div class="statusbar">
+      <div class="card">
+        <div class="label">Куб</div>
+        <div class="value" id="cubeTemp">---</div>
+        <div class="small">ключ: cubeTemp</div>
       </div>
-      <div class="slider-block">
-        <label>точно</label>
-        <input type="range" min="0" max="100" value="50" id="fineSlider">
+      <div class="card">
+        <div class="label">Колона</div>
+        <div class="value" id="columnTemp">---</div>
+        <div class="small">ключ: columnTemp</div>
       </div>
-      <div class="slider-block">
-        <span class="checkmark" id="checkBtn">&#10003;</span>
+      <div class="card">
+        <div class="label">Тиск</div>
+        <div class="value" id="atmPressure">---</div>
+        <div class="small">ключ: atmPressure</div>
+      </div>
+      <div class="card">
+        <div class="label">Версія</div>
+        <div class="value" id="header">---</div>
+        <div class="small">ключ: header</div>
       </div>
     </div>
-  </div>
-  <div class="main-temp-block">
-    <div class="stop-start">
-      <span>Стоп: <span id="stopTemp">33.3°C</span></span>
-      <span>Старт: <span id="startTemp">23.3°C</span></span>
+
+    <div class="statusbar">
+      <div class="card">
+        <div class="label">AUTO</div>
+        <div class="value" id="autoModeText">---</div>
+        <div class="small">ключ: switchString6</div>
+      </div>
+      <div class="card">
+        <div class="label">Клапан START/STOP</div>
+        <div class="value" id="valveText">---</div>
+        <div class="small">ключ: switchString3</div>
+      </div>
+      <div class="card">
+        <div class="label">TEN</div>
+        <div class="value" id="tenText">---</div>
+        <div class="small">ключ: tenEnabled</div>
+      </div>
+      <div class="card">
+        <div class="label">Аварія</div>
+        <div class="value" id="alarmText">---</div>
+        <div class="small">ключ: switchString2</div>
+      </div>
     </div>
-    <div class="main-temp" id="centerTemp">23.3°C</div>
-    <div class="icon-row">
-      <span class="icon valve">&#128739;</span>
-      <input class="input-box" type="number" value="10" id="valveInput">
-      <span class="icon power">&#128722;</span>
+
+    <div class="controls">
+      <div class="card">
+        <div class="row" style="justify-content:space-between">
+          <div>
+            <div class="label">Відкриття клапана</div>
+            <div class="value" id="pwmPercent">--%</div>
+            <div class="small">рахується з tempInt2</div>
+          </div>
+          <div>
+            <div class="label">tempInt2 (0..1023)</div>
+            <div class="value" id="tempInt2">---</div>
+          </div>
+        </div>
+
+        <hr style="border:none;border-top:1px solid #eee;margin:12px 0">
+
+        <div class="row">
+          <div style="text-align:center">
+            <div class="label">ШІМ % (грубо)</div>
+            <input type="range" min="0" max="100" value="0" id="coarse">
+          </div>
+          <div style="text-align:center">
+            <div class="label">ШІМ % (точно)</div>
+            <input type="range" min="0" max="100" value="50" id="fine">
+            <div class="small">fine: -10..+10%</div>
+          </div>
+          <button class="btn" id="sendShimFromSliders">SEND shim</button>
+        </div>
+
+        <div class="row" style="margin-top:10px">
+          <input class="inp" type="number" min="0" max="1023" id="shimInput" placeholder="shim (0..1023)">
+          <button class="btn" id="sendShimBtn">shim</button>
+
+          <button class="btn green" id="waterOn">Water ON</button>
+          <button class="btn gray" id="waterOff">Water OFF</button>
+
+          <button class="btn green" id="tenOn">TEN ON</button>
+          <button class="btn red" id="tenOff">TEN OFF</button>
+
+          <button class="btn" id="autoOn">AUTO ON</button>
+          <button class="btn gray" id="autoOff">AUTO OFF</button>
+        </div>
+      </div>
     </div>
-  </div>
-  <div class="info-row">
-    <span>Спиртуозність у кубі</span>
-    <button class="info-btn">&#9432;</button>
-    <button class="refresh-btn">&#8635;</button>
-  </div>
-  <div class="checkbox-row">
-    <input type="checkbox" id="expandChk"> <label for="expandChk">Ще</label>
-  </div>
-  <div class="expand-section" id="expandSection" style="display:none;">
-    <label><input type="checkbox" checked> Спиртуозність у кубі</label>
-    <label><input type="checkbox" checked> Швидкість відбирання</label>
-    <div style="display:flex; align-items:center; margin-bottom:8px;">
-      <button class="refresh-btn">&#8635;</button>
-      <input class="input-box" type="number" placeholder="Об'єм, мл.">
-      <button class="select-btn">Старт</button>
+
+    <div class="section">
+      <details>
+        <summary>Додаткові команди</summary>
+        <div class="card" style="margin-top:10px">
+          <div class="row">
+            <input class="inp" type="number" step="0.1" id="startIn" placeholder="start °C">
+            <input class="inp" type="number" step="0.1" id="stopIn" placeholder="stop °C">
+            <button class="btn" id="sendStartStop">Set start/stop</button>
+          </div>
+
+          <div class="row" style="margin-top:10px">
+            <input class="inp" type="number" step="0.01" id="alarmLimitIn" placeholder="alarmLimit °C">
+            <button class="btn" id="sendAlarmLimit">PUBalarmLimit</button>
+
+            <input class="inp" type="number" step="1" id="periodIn" placeholder="Period ms">
+            <button class="btn" id="sendPeriod">Periodkl</button>
+          </div>
+
+          <div class="row" style="margin-top:10px">
+            <input class="inp" type="number" step="1" id="pwmFinishIn" placeholder="pwmFinish %">
+            <button class="btn" id="sendPwmFinish">pwmFinish</button>
+
+            <input class="inp" type="number" step="0.1" id="cubeFinishIn" placeholder="cubeFinish °C">
+            <button class="btn" id="sendCubeFinish">cubeFinish</button>
+          </div>
+
+          <div class="row" style="margin-top:10px">
+            <select class="inp" id="displayMode">
+              <option value="0">display=0 (pressure)</option>
+              <option value="1">display=1 (alarmTemp)</option>
+              <option value="2">display=2 (powerTemp)</option>
+            </select>
+            <button class="btn" id="sendDisplay">display</button>
+          </div>
+
+          <div class="row" style="margin-top:10px">
+            <input class="inp" type="text" id="rawCmd" placeholder="raw cmd (наприклад shim=300)">
+            <button class="btn gray" id="sendRaw">raw</button>
+          </div>
+
+          <div class="small" style="margin-top:10px">
+            Відправка йде через <code>/api/serial_send?cmd=KEY=VAL</code> (як на сторінці /send)
+          </div>
+        </div>
+      </details>
     </div>
-    <label><input type="checkbox" checked> Сигналізація температури куба</label>
-    <div style="display:flex; align-items:center; margin-bottom:8px;">
-      <span class="icon">&#128276;</span>
-      <input class="input-box" type="number" value="110.00">
-      <span class="checkmark">&#10003;</span>
+
+    <div class="log" id="log">
+      <div style="opacity:.6">log...</div>
     </div>
-    <label><input type="checkbox" checked> Змінити T° Старт-Стоп</label>
-    <div style="display:flex; align-items:center; margin-bottom:8px;">
-      <button class="refresh-btn">&#8635;</button>
-      <input class="input-box" type="number" value="24">
-      <span class="checkmark">&#10003;</span>
-    </div>
-    <label><input type="checkbox" checked> Центральна позиція дисплея</label>
-    <button class="info-btn">&#9432;</button>
-    <button class="select-btn">Вибрати</button>
+
   </div>
-  <script>
-    document.getElementById('expandChk').addEventListener('change', function() {
-      document.getElementById('expandSection').style.display = this.checked ? 'block' : 'none';
-    });
-  </script>
+
+<script>
+(function(){
+  const $ = (id)=>document.getElementById(id);
+
+  function logLine(msg, cls){
+    const el = $('log');
+    const d = document.createElement('div');
+    d.className = cls || '';
+    d.textContent = msg;
+    el.prepend(d);
+  }
+
+  function num(v){
+    const x = parseFloat(String(v).replace(',','.'));
+    return isNaN(x) ? NaN : x;
+  }
+  function bool01(v){ return String(v).trim() === '1'; }
+
+  function serialMapFromStatus(st){
+    const m = {};
+    if(!st || !st.serial_keys || !st.serial_values) return m;
+    for(let i=0;i<st.serial_keys.length;i++){
+      m[st.serial_keys[i]] = st.serial_values[i];
+    }
+    return m;
+  }
+
+  function sendSerialCmd(cmd){
+    if(!cmd) return Promise.resolve();
+    logLine('[TX] '+cmd, 'tx');
+    return fetch('/api/serial_send?cmd='+encodeURIComponent(cmd))
+      .then(r=>r.text())
+      .then(t=>{
+        if(String(t).trim() !== 'OK') logLine('[WARN] resp='+t, 'err');
+      })
+      .catch(e=>logLine('[ERR] '+e, 'err'));
+  }
+
+  // ---- Telemetry update ----
+  let lastSerialRaw = '';
+  function applyTelemetry(st){
+    const m = serialMapFromStatus(st);
+
+    // if no serial yet
+    const hasSerial = (st && st.serial_last && st.serial_last.length > 0);
+    $('dataPill').className = 'pill ' + (hasSerial ? 'ok' : 'bad');
+    $('dataPill').textContent = hasSerial ? 'LIVE' : 'NO DATA';
+
+    // show raw changes in log (optional)
+    if(st && st.serial_last && st.serial_last !== lastSerialRaw){
+      lastSerialRaw = st.serial_last;
+      logLine('[RX] '+st.serial_last, 'rx');
+    }
+
+    // core values
+    const cube = num(m.cubeTemp);
+    const col  = num(m.columnTemp);
+    const atm  = num(m.atmPressure);
+
+    $('cubeTemp').textContent = isNaN(cube) ? (m.cubeTemp || '---') : (cube.toFixed(1)+'°C');
+    $('columnTemp').textContent = isNaN(col) ? (m.columnTemp || '---') : (col.toFixed(1)+'°C');
+    $('atmPressure').textContent = isNaN(atm) ? (m.atmPressure || '---') : (atm.toFixed(1)+' мм');
+    $('header').textContent = m.header || '---';
+
+    // auto/manual
+    const autoMode = bool01(m.switchString6);
+    $('autoModeText').innerHTML = autoMode ? '<span class="pill ok">AUTO</span>' : '<span class="pill mid">MANUAL</span>';
+
+    // valve state (START/STOP)
+    const valveOpen = bool01(m.switchString3);
+    $('valveText').innerHTML = valveOpen ? '<span class="pill ok">START</span>' : '<span class="pill bad">STOP</span>';
+
+    // TEN (note: your wifi packet uses inverted 0=ON 1=OFF; but /get_status uses parsed fields from ESP packet,
+    // and in your field_names array tenEnabled is present; treat '0'/'1' as best effort)
+    // If you see inverted, swap below.
+    const tenOn = (String(m.tenEnabled).trim() === '1'); // may need invert depending on your sender
+    $('tenText').innerHTML = tenOn ? '<span class="pill ok">ON</span>' : '<span class="pill bad">OFF</span>';
+
+    // alarm
+    const alarm = bool01(m.switchString2);
+    $('alarmText').innerHTML = alarm ? '<span class="pill bad">ALARM</span>' : '<span class="pill ok">OK</span>';
+
+    // tempInt2 + percent
+    const t2 = num(m.tempInt2);
+    $('tempInt2').textContent = isNaN(t2) ? (m.tempInt2 || '---') : String(Math.round(t2));
+    const pct = isNaN(t2) ? NaN : (t2 / 10.23);
+    $('pwmPercent').textContent = isNaN(pct) ? '--%' : (pct.toFixed(1) + '%');
+
+    // optional placeholders: show start/stop from telemetry if present
+    // your parser names: pwmValue1Pressure / pwmValue2Pressure
+    const stv = num(m.pwmValue1Pressure);
+    const spv = num(m.pwmValue2Pressure);
+    // If you want to display them somewhere else, add elements; for now just keep in inputs if empty:
+    if($('startIn') && ($('startIn').value === '' || $('startIn').value === '0')) {
+      if(!isNaN(stv)) $('startIn').value = stv.toFixed(1);
+    }
+    if($('stopIn') && ($('stopIn').value === '' || $('stopIn').value === '0')) {
+      if(!isNaN(spv)) $('stopIn').value = spv.toFixed(1);
+    }
+  }
+
+  function refresh(){
+    return fetch('/get_status')
+      .then(r=>r.json())
+      .then(st=>applyTelemetry(st))
+      .catch(e=>{
+        $('dataPill').className = 'pill bad';
+        $('dataPill').textContent = 'ERR';
+        logLine('[ERR] /get_status '+e, 'err');
+      });
+  }
+
+  // ---- Slider -> shim ----
+  function shimFromSliders(){
+    let coarse = parseInt($('coarse').value||'0',10); // 0..100
+    let fine = parseInt($('fine').value||'50',10);    // 0..100 -> -10..+10
+    let adj = Math.round((fine - 50)/5);              // -10..+10
+    let pct = coarse + adj;
+    if(pct<0)pct=0; if(pct>100)pct=100;
+    return Math.round(pct*1023/100);
+  }
+
+  // ---- Bind UI ----
+  $('homeBtn').onclick = ()=>location.href='/';
+
+  $('sendShimFromSliders').onclick = ()=>{
+    const shim = shimFromSliders();
+    $('shimInput').value = shim;
+    return sendSerialCmd('shim='+shim).then(()=>refresh());
+  };
+  $('sendShimBtn').onclick = ()=>{
+    const v = $('shimInput').value;
+    return sendSerialCmd('shim='+v).then(()=>refresh());
+  };
+
+  $('waterOn').onclick  = ()=>sendSerialCmd('water=1').then(()=>refresh());
+  $('waterOff').onclick = ()=>sendSerialCmd('water=0').then(()=>refresh());
+
+  $('tenOn').onclick  = ()=>sendSerialCmd('tenControl=1').then(()=>refresh());
+  $('tenOff').onclick = ()=>sendSerialCmd('tenControl=0').then(()=>refresh());
+
+  $('autoOn').onclick  = ()=>sendSerialCmd('autoMode=1').then(()=>refresh());
+  $('autoOff').onclick = ()=>sendSerialCmd('autoMode=0').then(()=>refresh());
+
+  $('sendStartStop').onclick = ()=>{
+    const startV = $('startIn').value.trim();
+    const stopV  = $('stopIn').value.trim();
+    // serial_comm.ino буферизує start/stop і відправляє тільки коли є обидва
+    return sendSerialCmd('start='+startV)
+      .then(()=>sendSerialCmd('stop='+stopV))
+      .then(()=>refresh());
+  };
+
+  $('sendAlarmLimit').onclick = ()=>{
+    const v = $('alarmLimitIn').value.trim();
+    return sendSerialCmd('PUBalarmLimit='+v).then(()=>refresh());
+  };
+
+  $('sendPeriod').onclick = ()=>{
+    const v = $('periodIn').value.trim();
+    return sendSerialCmd('Periodkl='+v).then(()=>refresh());
+  };
+
+  $('sendPwmFinish').onclick = ()=>{
+    const v = $('pwmFinishIn').value.trim();
+    return sendSerialCmd('pwmFinish='+v).then(()=>refresh());
+  };
+
+  $('sendCubeFinish').onclick = ()=>{
+    const v = $('cubeFinishIn').value.trim();
+    return sendSerialCmd('cubeFinish='+v).then(()=>refresh());
+  };
+
+  $('sendDisplay').onclick = ()=>{
+    const v = $('displayMode').value;
+    return sendSerialCmd('display='+v).then(()=>refresh());
+  };
+
+  $('sendRaw').onclick = ()=>{
+    const v = $('rawCmd').value.trim();
+    return sendSerialCmd(v).then(()=>refresh());
+  };
+
+  // periodic refresh
+  refresh();
+  setInterval(refresh, 2000);
+})();
+</script>
+
 </body>
 </html>
 )HTML";

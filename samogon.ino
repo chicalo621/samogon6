@@ -140,7 +140,7 @@ EEPROM.write(ADDR_SAVED_FLAG, SETTINGS_SAVED_FLAG);
   EEPROM.write(ADDR_SAVED_FLAG, SETTINGS_SAVED_FLAG);
   // WiFi
   writeEEPROMString(ADDR_WIFI_SSID, savedSSID, LEN_WIFI_SSID);
- 
+  writeEEPROMString(ADDR_WIFI_PASS, savedPass, LEN_WIFI_PASS);
   // MQTT
   writeEEPROMString(ADDR_MQTT_SERVER, mqttServer, LEN_MQTT_SERVER);
   EEPROM.put(ADDR_MQTT_PORT, mqttPort);
@@ -172,7 +172,13 @@ void serialLoop();
 void serialSendCommand(String cmd);
 void setArduinoCommand(String key, String value);
 void sendCommandToArduino();
-
+// Прототипи з distillation_modes.ino
+void selectRectificationMode(String newMode);
+void updateRectificationState();
+void updateBZKControl();
+void setBZKEnabled(bool enabled);
+void initDistillationModes();
+void updateDistillationModes();
 // ═══════════════════════════════════════════════════════════════════════════
 //  SETUP
 // ═══════════════════════════════════════════════════════════════════════════
@@ -192,11 +198,13 @@ void setup() {
   initMqttOTA();
 
   Serial1.println("=== Samogon Ready ===\n");
+  initDistillationModes();
 }
 // ═══════════════════════════════════════════════════════════════════════════
 //  LOOP
 // ═══════════════════════════════════════════════════════════════════════════
 void loop() {
+  updateDistillationModes();
   serialLoop();               // Прийом та парсинг даних з Serial
   mqttLoop();                 // Обробка MQTT (реконнект + відправка)
   mqttOtaLoop();              // Обробка OTA через MQTT

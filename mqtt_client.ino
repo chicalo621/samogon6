@@ -37,14 +37,45 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   }
 #endif
 
-  // Маршрутизація команди до Arduino
-  if (subTopic.length() > 0) {
-    // .../cmd/shim з payload "500" → serialSendCommand("shim=500")
-    // → setArduinoCommand("shim", "500") → формує ^...$...&...*...%#500@...!
-    serialSendCommand(subTopic + "=" + message);
+  // Обробка команд режимів дистилляції (нове)
+  if (subTopic == "mode") {
+    selectRectificationMode(message);  // message = "голови", "стоп" тощо
+  } else if (subTopic == "bzk_enable") {
+    setBZKEnabled(message == "1");  // 1 = вмикнути, 0 = вимкнути
+  } else if (subTopic == "set_speeds") {
+    // Payload: "50,100,200,300,400" — швидкості для режимів
+    int idx = 0;
+    int start = 0;
+    for (int i = 0; i <= message.length(); i++) {
+      if (i == message.length() || message[i] == ',') {
+        modeSpeeds[idx++] = message.substring(start, i).toFloat();
+        start = i + 1;
+        if (idx >= 5) break;
+      }
+    }
+    Serial1.println("[MQTT] Швидкості оновлено");
+  } else if (subTopic == "set_targets") {
+    // Payload: "100,200,300,400,500" — цілі для режимів
+    int idx = 0;
+    int start = 0;
+    for (int i = 0; i <= message.length(); i++) {
+      if (i == message.length() || message[i] == ',') {
+        modeTargets[idx++] = message.substring(start, i).toFloat();
+        start = i + 1;
+        if (idx >= 5) break;
+      }
+    }
+    Serial1.println("[MQTT] Цілі оновлено");
   } else {
-    // Точний топік — raw відправка
-    serialSendCommand(message);
+    // Маршрутизація команди до Arduino (існуючий код)
+    if (subTopic.length() > 0) {
+      // .../cmd/shim з payload "500" → serialSendCommand("shim=500")
+      // → setArduinoCommand("shim", "500") → формує ^...$...&...*...%#500@...!
+      serialSendCommand(subTopic + "=" + message);
+    } else {
+      // Точний топік — raw відправка
+      serialSendCommand(message);
+    }
   }
 }
 
@@ -127,7 +158,7 @@ void mqttPublishSerialData() {
 #endif
 }
 
-// ─── Основний цикл MQTT ────────────────────────────────────────────────────
+// ─── Основний цикл MQTT ─────────────────────────────────────────────────────
 void mqttLoop() {
 #ifdef ENABLE_MQTT
   if (mqttServer.length() == 0) return;
@@ -170,4 +201,3 @@ void mqttReconnectWithNewSettings() {
   }
 #endif
 }
-
