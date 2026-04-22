@@ -104,7 +104,7 @@ EncButton enc(ENCODER_CLK, ENCODER_DT, ENCODER_SW);// Енкодер з кноп
 
 // ─── Адреси датчиків температури ─────────────────────────────────────────────
 uint8_t tempSensorAddresses[SENSOR_COUNT][8];       // Масив 8-байтних адрес DS18B20
-const char* tempSensorNames[SENSOR_COUNT] = {"Куб", "Колона", "ТСА"}; // Назви датчиків
+const char* tempSensorNames[SENSOR_COUNT] = {"Колона", "Куб", "ТСА"}; // Назви датчиків
 byte columnSensorAddr[8];   // Адреса датчика колони  (tempSensorAddresses[0])
 byte cubeSensorAddr[8];     // Адреса датчика куба    (tempSensorAddresses[1])
 byte alarmSensorAddr[8];    // Адреса датчика аварії  (tempSensorAddresses[2])
@@ -429,6 +429,8 @@ void  loadAddresses();
 void  saveAddresses();
 void  scanAndSaveSensors();
 bool  isValidAddress(uint8_t* addr);
+ bool  isEmptyAddress(const uint8_t* addr);
+  void  clearAddress(uint8_t* addr);
 void  softwarePWM(uint8_t pin, uint8_t value, uint16_t freq_hz, unsigned long &lastTime, bool &state);
 
 // ─── Helper: друк float через Print (без String, без heap) ───────────────────
@@ -1515,40 +1517,119 @@ digitalWrite(AVARIA_OUTPUT_PIN, HIGH);//Інверсія
   } else {
     // EEPROM має дані — завантажити збережені адреси
     loadAddresses();
+// --- НОВА ЛОГІКА: перевірка EEPROM проти шини + обнулення відсутніх + запис нових у вільні слоти ---
 
-    // Додатково: перевіряємо які датчики є на шині прямо зараз
-    // Якщо знайдено новий датчик якого немає в EEPROM — додаємо його
-    // на перше вільне місце (для автоматичного додавання нових датчиків)
-    bool foundFlags[SENSOR_COUNT] = {false}; // Прапори: який датчик знайдено на шині
-    oneWireBus.reset_search();
-    uint8_t addr[8];
-    while (oneWireBus.search(addr)) {
-      if (!isValidAddress(addr)) continue; // Пропускаємо датчики з невірним CRC або не 0x28
+  // 1) Скануємо OneWire і збираємо всі адреси, що реально є на шині
+  uint8_t busAddrs[10][8];   // запас, якщо датчиків більше ніж 3
+  byte busCount = 0;
 
-      // Перевіряємо чи ця адреса вже є в збережених
-      bool matched = false;
-      for (byte i = 0; i < SENSOR_COUNT; i++) {
-        if (memcmp(addr, tempSensorAddresses[i], 8) == 0) {
-          foundFlags[i] = true; // Датчик знайдений — позначаємо
-          matched = true;
-          break;
-        }
-      }
+  oneWireBus.reset_search();
+  uint8_t addr[8];
+  while (oneWireBus.search(addr)) {
+    if (!isValidAddress(addr)) continue;
 
-      // Якщо адреса нова (не збережена) — додаємо на перше вільне місце
-      if (!matched) {
-        for (byte i = 0; i < SENSOR_COUNT; i++) {
-          if (!foundFlags[i]) {
-            memcpy(tempSensorAddresses[i], addr, 8);
-            foundFlags[i] = true;
-            break;
-          }
-        }
+    // захист від дубліката
+    bool dup = false;
+    for (byte k = 0; k < busCount; k++) {
+      if (memcmp(addr, busAddrs[k], 8) == 0) { dup = true; break; }
+    }
+
+    if (!dup && busCount < 10) {
+      memcpy(busAddrs[busCount], addr, 8);
+      busCount++;
+    }
+  }
+
+  bool changed = false;
+  // 2) Перевіряємо кожен слот EEPROM: якщо адреси зі слота немає на шині -> ОБНУЛЯЄМО слот
+  bool slotEmpty[SENSOR_COUNT] = {false};
+
+  for (byte i = 0; i < SENSOR_COUNT; i++) {
+    if (isEmptyAddress(tempSensorAddresses[i])) {
+      slotEmpty[i] = true;
+      continue;
+    }
+
+    bool existsOnBus = false;
+    for (byte k = 0; k < busCount; k++) {
+      if (memcmp(tempSensorAddresses[i], busAddrs[k], 8) == 0) {
+        existsOnBus = true;
+        break;
       }
     }
 
-    // Зберігаємо оновлений список у EEPROM
+    if (!existsOnBus) {
+      clearAddress(tempSensorAddresses[i]);  // <- вимога: при відсутності ОБНУЛЯТИ
+      slotEmpty[i] = true;
+      changed = true;
+    }
+  }
+
+  // 3) Знаходимо "нові" датчики (є на шині, але їх немає в EEPROM)
+  //    і записуємо їх ТІЛЬКИ в порожні (обнулені) слоти.
+  //    Старі слоти НЕ тасуємо.
+  for (byte k = 0; k < busCount; k++) {
+    bool alreadySaved = false;
+
+    for (byte i = 0; i < SENSOR_COUNT; i++) {
+      if (!isEmptyAddress(tempSensorAddresses[i]) &&
+          memcmp(tempSensorAddresses[i], busAddrs[k], 8) == 0) {
+        alreadySaved = true;
+        break;
+      }
+    }
+    if (alreadySaved) continue;
+
+    // запис у перший порожній слот
+    for (byte i = 0; i < SENSOR_COUNT; i++) {
+      if (slotEmpty[i]) {
+        memcpy(tempSensorAddresses[i], busAddrs[k], 8);
+        slotEmpty[i] = false;
+        changed = true;
+        break;
+      }
+    }
+    // якщо порожніх слотів нема — лишній датчик ігноруємо
+  }
+
+  // 4) Пишемо EEPROM тільки якщо реально були зміни
+  if (changed) {
     saveAddresses();
+  }
+
+    // // Додатково: перевіряємо які датчики є на шині прямо зараз
+    // // Якщо знайдено новий датчик якого немає в EEPROM — додаємо його
+    // // на перше вільне місце (для автоматичного додавання нових датчиків)
+    // bool foundFlags[SENSOR_COUNT] = {false}; // Прапори: який датчик знайдено на шині
+    // oneWireBus.reset_search();
+    // uint8_t addr[8];
+    // while (oneWireBus.search(addr)) {
+      // if (!isValidAddress(addr)) continue; // Пропускаємо датчики з невірним CRC або не 0x28
+
+      // // Перевіряємо чи ця адреса вже є в збережених
+      // bool matched = false;
+      // for (byte i = 0; i < SENSOR_COUNT; i++) {
+        // if (memcmp(addr, tempSensorAddresses[i], 8) == 0) {
+          // foundFlags[i] = true; // Датчик знайдений — позначаємо
+          // matched = true;
+          // break;
+        // }
+      // }
+
+      // // Якщо адреса нова (не збережена) — додаємо на перше вільне місце
+      // if (!matched) {
+        // for (byte i = 0; i < SENSOR_COUNT; i++) {
+          // if (!foundFlags[i]) {
+            // memcpy(tempSensorAddresses[i], addr, 8);
+            // foundFlags[i] = true;
+            // break;
+          // }
+        // }
+      // }
+    // }
+
+    // // Зберігаємо оновлений список у EEPROM
+    // saveAddresses();
   }
 
   // ─── Копіюємо адреси у робочі змінні ────────────────────────────────────
@@ -2721,6 +2802,16 @@ void scanAndSaveSensors() {
 bool isValidAddress(uint8_t* addr) {
   return (OneWire::crc8(addr, 7) == addr[7]) && (addr[0] == 0x28);
 }
+ bool isEmptyAddress(const uint8_t* addr) {
+    for (byte i = 0; i < 8; i++) {
+      if (addr[i] != 0x00) return false;
+    }
+    return true;
+  }
+
+  void clearAddress(uint8_t* addr) {
+    for (byte i = 0; i < 8; i++) addr[i] = 0x00;
+  }
 
 // ─── softwarePWM: програмний ШІМ через digitalWrite ──────────────────────────
 // Використовується при controlMode=1 для плавного керування мотором/симістором
