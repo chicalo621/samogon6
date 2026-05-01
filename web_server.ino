@@ -63,8 +63,10 @@ void setupWebServer() {
   #else
     json += "\"mqtt_connected\":false,";
   #endif
-    json += "\"mqtt_server\":\"" + mqttServer + ":" + String(mqttPort) + "\",";
-    json += "\"serial_last\":\"" + lastRawSerial + "\",";
+json += "\"mqtt_server\":\"" + mqttServer + ":" + String(mqttPort) + "\",";
+json += "\"device_version\":\"" + deviceVersion + "\",";
+json += "\"chip_id\":\"" + String(ESP.getChipId(), HEX) + "\",";
+json += "\"serial_last\":\"" + lastRawSerial + "\",";
 
     // Масив ключів
     json += "\"serial_keys\":[";

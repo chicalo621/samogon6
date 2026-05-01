@@ -208,7 +208,7 @@ bool displayMiddleMode = 1; // true = у середині рядка 1 пока�
                             // false = показувати atmPressure
 
 // ─── Параметри ШІМ клапана ───────────────────────────────────────────────────
-int pwmPeriodMs = 4000; // Період ШІМ клапана (мс), регулюється меню/UART
+unsigned long pwmPeriodMs = 4000; // Період ШІМ клапана (мс), регулюється меню/UART
 int freq_hz = 100;  // Частота ШІМ для interrupt (Гц), можна змінювати
 volatile uint16_t pwmPeriodUs = 10000;  // Період ШІМ у мкс для interrupt
 
@@ -1255,7 +1255,8 @@ void decodeUartCommand(const char* cmd) {
   // 8. : → pwmPeriodMs (період ШІМ клапана)
   p = strchr(cmd, ':');
   if (p) {
-    pwmPeriodMs = atoi(p + 1);
+   // pwmPeriodMs = atoi(p + 1);
+   pwmPeriodMs = strtoul(p + 1,nullptr,10);
   }
 
   // 9. ; → pwmFinishValue (ШІМ завершення)
@@ -2856,7 +2857,7 @@ bool isValidAddress(uint8_t* addr) {
 } */
 void extendmotor() {
   if (controlMode != 1 || !tenEnabled || alarmFlag == 0) {
-    digitalWrite(VALVE_RELAY_DIRECT_PIN, HIGH);  // Надійно закрити клапан
+    //digitalWrite(VALVE_RELAY_DIRECT_PIN, HIGH);  // Надійно закрити клапан
     return;  // Вихід з функції, якщо умова справджується
   }
   // Решта виконується ТІЛЬКИ якщо умова НЕ справджується
