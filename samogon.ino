@@ -172,6 +172,11 @@ void serialLoop();
 void serialSendCommand(String cmd);
 void setArduinoCommand(String key, String value);
 void sendCommandToArduino();
+void initDistillationModes();
+void updateDistillationModes();
+void setMainMode(String value);
+void setDistState(String value);
+void setBZKState(String value);
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  SETUP
@@ -190,6 +195,7 @@ void setup() {
   initWiFi();              // ПОТОМ инициализируем WiFi
   mqttInit();
   initMqttOTA();
+  initDistillationModes();
 
   Serial1.println("=== Samogon Ready ===\n");
 }
@@ -200,6 +206,7 @@ void loop() {
   serialLoop();               // Прийом та парсинг даних з Serial
   mqttLoop();                 // Обробка MQTT (реконнект + відправка)
   mqttOtaLoop();              // Обробка OTA через MQTT
+  updateDistillationModes();  // Алгоритми дистиляції та ББК (щосекунди)
 
   // Відкладене збереження налаштувань (після веб-форми)
   if (settingsNeedSave) {
