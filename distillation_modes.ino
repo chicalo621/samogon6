@@ -237,7 +237,7 @@ static int computeBZKPWM() {
             // Тримаємо мінімальний ШІМ, чекаємо стабілізації температури низу.
             // Коли низ стабільний ≥60 с — фіксуємо базову temp і переходимо в WORK.
             if (tempBottom < MIN_BOTTOM_TEMP) {
-                bzkTimer = now;  // скидаємо таймер якщо низ ще холодний
+                bzkTimer = 0;  // скидаємо таймер, щоб відлік почався заново
                 bzkLastTemp = tempBottom;
                 return (int)MIN_PWM;
             }
@@ -252,7 +252,7 @@ static int computeBZKPWM() {
                     Serial1.println("[ББК] → РОБОТА, ціль=" + String(bzkTargetTemp, 1));
                 }
             } else {
-                bzkTimer = now;
+                bzkTimer = 0;  // температура нестабільна — скидаємо відлік
             }
             bzkLastTemp = tempBottom;
             return (int)MIN_PWM;
