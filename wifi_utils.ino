@@ -8,8 +8,11 @@ void startAP() {
 #ifdef ENABLE_WIFI
   if (!hotspotMode) {
     hotspotMode = true;
-    WiFi.softAP(AP_SSID, AP_PASS);
-    Serial1.println("[WiFi] AP запущена: " + String(AP_SSID) + " IP: " + WiFi.softAPIP().toString());
+    String chipId = String(ESP.getChipId(), HEX);
+    chipId.toUpperCase();
+    String apSsid = String(AP_SSID) + "_" + chipId;
+    WiFi.softAP(apSsid.c_str(), AP_PASS);
+    Serial1.println("[WiFi] AP запущена: " + apSsid + " IP: " + WiFi.softAPIP().toString());
   }
 #endif
 }

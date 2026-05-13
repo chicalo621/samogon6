@@ -4,7 +4,11 @@
 // ============================================================================
 #include "web_pages.h"
 #include <Updater.h>
-
+// Add state tracking variable at top of web_server.ino
+static bool webOtaInProgress = false;
+static uint32_t webOtaReceived = 0;
+static uint32_t webOtaTotalSize = 0;
+static uint8_t webOtaLastPercent = 0;  // ← Add this line
 void setupWebServer() {
 #ifdef ENABLE_WEB_SERVER
 
@@ -260,41 +264,107 @@ Serial.println("[save_wifi] scheduled AP switch in loop()");
   });
 
   // ─── Web OTA: завантаження прошивки через веб-інтерфейс ────────────────────
-  server.on("/api/ota_upload", HTTP_POST,
+server.on("/api/ota_upload", HTTP_POST,
+  // Response handler (called after upload completes)
     // Відповідь після завершення завантаження
-    [](AsyncWebServerRequest *request) {
-      bool success = !Update.hasError();
-      request->send(200, "application/json",
-        success ? "{\"status\":\"ok\",\"msg\":\"Оновлення успішне! Перезавантаження...\"}"
-                : "{\"status\":\"error\",\"msg\":\"Помилка оновлення\"}");
-      if (success) {
-        delay(1000);
-        ESP.restart();
+ [](AsyncWebServerRequest *request) {
+    if (webOtaInProgress) {
+      webOtaInProgress = false;
+      Update.end(false);
+      request->send(500, "application/json", 
+        "{\"status\":\"error\",\"msg\":\"Upload interrupted\"}");
+    }
+  },
+  // Chunk handler (processes each part of the file)
+  [](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
+    
+    // ═══ START: Initialize on first chunk ═══
+    if (index == 0) {
+      Serial1.println("[OTA-WEB] 🔄 Start upload: " + filename);
+      
+      // Calculate available space (same logic as MQTT OTA)
+      uint32_t maxSketchSpace = (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
+      Serial1.printf("[OTA-WEB] Free space: %u bytes\n", maxSketchSpace);
+      
+      webOtaTotalSize = request->contentLength();
+      if (webOtaTotalSize == 0) {
+        Serial1.println("[OTA-WEB] ❌ Error: contentLength is 0");
+        request->send(400, "application/json", 
+          "{\"status\":\"error\",\"msg\":\"Unknown file size\"}");
+        return;
       }
-    },
-    // Обробка чанків файлу під час завантаження
-    [](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
-      if (index == 0) {
-        Serial1.println("[OTA-WEB] Старт: " + filename);
-        uint32_t maxSketchSpace = (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
-        if (!Update.begin(maxSketchSpace, U_FLASH)) {
-          Serial1.println("[OTA-WEB] Update.begin() помилка");
-        }
+      
+      if (webOtaTotalSize > maxSketchSpace) {
+        Serial1.printf("[OTA-WEB] ❌ Error: firmware %u > available %u\n", 
+          webOtaTotalSize, maxSketchSpace);
+        request->send(413, "application/json", 
+          "{\"status\":\"error\",\"msg\":\"Firmware too large\"}");
+        return;
       }
-      if (len) {
-        if (Update.write(data, len) != len) {
-          Serial1.println("[OTA-WEB] Помилка запису");
-        }
+      
+      webOtaReceived = 0;
+      
+      // Attempt to begin update
+      if (!Update.begin(webOtaTotalSize, U_FLASH)) {
+        Serial1.printf("[OTA-WEB] ❌ Update.begin() failed: %d\n", Update.getError());
+        request->send(500, "application/json", 
+          "{\"status\":\"error\",\"msg\":\"Update initialization failed\"}");
+        return;
       }
-      if (final) {
-        if (Update.end(true)) {
-          Serial1.printf("[OTA-WEB] Успіх, %u байт\n", index + len);
-        } else {
-          Serial1.printf("[OTA-WEB] Помилка: %d\n", Update.getError());
-        }
+      
+      webOtaInProgress = true;
+      Serial1.printf("[OTA-WEB] ✅ Update started: %u bytes\n", webOtaTotalSize);
+    }
+    
+    // ═══ VALIDATE STATE ═══
+    if (!webOtaInProgress) {
+      Serial1.println("[OTA-WEB] ❌ Error: Update not initialized");
+      if (final) request->send(500, "application/json", 
+        "{\"status\":\"error\",\"msg\":\"Update not initialized\"}");
+      return;
+    }
+    
+    // ═══ WRITE CHUNK ═══
+    if (len > 0) {
+      size_t written = Update.write(data, len);
+      if (written != len) {
+        webOtaInProgress = false;
+        Update.end(false);
+        Serial1.printf("[OTA-WEB] ❌ Write error: wrote %u of %u\n", written, len);
+        if (final) request->send(500, "application/json", 
+          "{\"status\":\"error\",\"msg\":\"Write failed\"}");
+        return;
+      }
+      webOtaReceived += len;
+      
+    // Log progress every 10%
+      uint8_t percent = (webOtaReceived * 100) / webOtaTotalSize;
+      if (percent >= webOtaLastPercent + 10 || percent == 100) {
+        webOtaLastPercent = percent;  // ← Use module-level variable
+        Serial1.printf("[OTA-WEB] 📊 Progress: %u%% (%u/%u)\n", 
+          percent, webOtaReceived, webOtaTotalSize);
       }
     }
-  );
+    
+    // ═══ FINALIZE ═══
+   if (final) {
+      webOtaInProgress = false;
+      webOtaLastPercent = 0;  // ← Use module-level variable
+      
+      if (Update.end(true)) {
+        Serial1.printf("[OTA-WEB] ✅ Success! %u bytes written\n", webOtaReceived);
+        request->send(200, "application/json", 
+          "{\"status\":\"ok\",\"msg\":\"Update successful! Device rebooting...\"}");
+        delay(500);
+        ESP.restart();
+      } else {
+        Serial1.printf("[OTA-WEB] ❌ Finalize failed: %d\n", Update.getError());
+        request->send(500, "application/json", 
+          "{\"status\":\"error\",\"msg\":\"Update finalization failed\"}");
+      }
+    }
+  }
+);
 
   // ─── Сторінка автоматизації ──────────────────────────────────────────────
   server.on("/automation", HTTP_GET, [](AsyncWebServerRequest *request) {

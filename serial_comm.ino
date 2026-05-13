@@ -38,30 +38,30 @@ String buf_stop  = "";
 
 // ─── Імена полів для розпарсених даних ───────────────────────────────────────
 const char* field_names[MAX_SERIAL_KEYS] = {
-  "header",              // 0:  "HomeSamogon.ru/4.8"
-  "columnTemp",          // 1:  температура колони
-  "atmPressure",         // 2:  атмосферний тиск (мм рт.ст.)
-  "cubeTemp",            // 3:  температура куба
-  "switchString6",       // 4:  автоматичний режим (0/1)
-  "switchString3",       // 5:  стан старт/стоп (0/1)
-  "pwmValue1Pressure",   // 6:  температура старту
-  "pwmValue2Pressure",   // 7:  температура стопу
-  "tempInt2",            // 8:  значення ШІМ (0-1023)
-  "alarmTempLimit",      // 9:  межа аварійної температури
-  "displayLowerText",    // 10: контрольна сума (нижній рядок)
-  "alarmTemp",           // 11: температура аварійного датчика (ТСА)
-  "switchString2",       // 12: протікання/перегрів (0/1)
-  "switchString8",       // 13: стан периферії (0/1)
-  "cubeFinishTemp",      // 14: температура закінчення дистиляції
-  "pwmFinishValue",      // 15: ШІМ закінчення дистиляції (0-100)
-  "pwmPeriodMs",         // 16: період клапана (мс)
-  "tenEnabled",          // 17: стан ТЕН (0/1)
-  "finishFlag",          // 18: дистиляція: 1=іде, 0=завершена
-  "cubeAlcohol",         // 19: % спирту по кубу (0-65%)
-  "columnAlcohol",       // 20: % спирту по колоні (77-100%)
-  "endMark"              // 21: "%" — маркер кінця пакету
+  "header",              // 0
+  "columnTemp",          // 1
+  "atmPressure",         // 2
+  "cubeTemp",            // 3
+  "switchString6",       // 4
+  "switchString3",       // 5
+  "pwmValue1Pressure",   // 6
+  "pwmValue2Pressure",   // 7
+  "tempInt2",            // 8
+  "alarmTempLimit",      // 9
+  "displayLowerText",    // 10
+  "alarmTemp",           // 11
+  "switchString2",       // 12
+  "switchString8",       // 13
+  "cubeFinishTemp",      // 14
+  "pwmFinishValue",      // 15
+  "pwmPeriodMs",         // 16
+  "tenEnabled",          // 17
+  "finishFlag",          // 18
+  "uptimeHms",           // 19
+  "tempFlag41",          // 20
+  "totalSelectedMl",     // 21
+  "endMark"              // 22
 };
-
 // ─── Парсинг пакету від Arduino ─────────────��────────────────────────────────
 void parseSerialPacket(String line) {
   line.trim();
@@ -214,7 +214,14 @@ void setArduinoCommand(String key, String value) {
   else if (key == "tenControl") {
     cmd = "!" + value;
   }
-
+ // ── Ліміт об'єму відбору, мл
+  else if (key == "targetVolume") {
+    cmd = ">" + value + "!";
+  }
+  // ── Максимальна продуктивність, мл/год
+  else if (key == "maxFlowMlH") {
+    cmd = "<" + value + "!";
+  }
   // ── Raw команда
   else if (key == "raw") {
     cmd = value;
