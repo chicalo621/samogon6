@@ -59,7 +59,7 @@
 #define BARO_BMP180  1
 #define BARO_BME280  2
 
-#define BARO_SENSOR  BARO_BME280     // <-- тут перемикаєш перед прошивкою
+#define BARO_SENSOR  BARO_BMP180     // <-- тут перемикаєш перед прошивкою
 
 // для BME280 (I2C адреса найчастіше 0x76 або 0x77)
 #define BME280_ADDR  0x76
@@ -211,6 +211,11 @@ bool displayMiddleMode = 1; // true = у середині рядка 1 пока�
 unsigned long pwmPeriodMs = 4000; // Період ШІМ клапана (мс), регулюється меню/UART
 int freq_hz = 100;  // Частота ШІМ для interrupt (Гц), можна змінювати
 volatile uint16_t pwmPeriodUs = 10000;  // Період ШІМ у мкс для interrupt
+// --- Підрахунок об'єму відбору ---
+double total_selected_ml = 0.0;      // Накопичений об'єм, мл
+float max_flow_ml_h = 12000.0;       // Макс. продуктивність, мл/год
+float target_volume = 0.0;           // Цільовий ліміт автостопу, мл (0 = вимкнено)
+unsigned long vol_last_ms = 0UL;     // Таймер підрахунку об'єму
 
 // ─── Аварійні прапори ────────────────────────────────────────────────────────
 bool alarmFlag  = 1; // ГОЛОВНИЙ ПРАПОР АВАРІЇ:
@@ -255,6 +260,7 @@ volatile int  tempInt2   = 0;   // ЗНАЧЕННЯ ШІМ КЛАПАНА (0..10
                        // Встановлюється командою # по UART або меню
 bool pwmCoarseFlag = 0; // Грубий ШІМ сигнал (від генератора3 або freeLogicQ1)
 bool pwmFineFlag   = 0; // true = крайнє значення (0 або 1023), без ШІМ генератора
+
 
 // ─── Прапори стану перегонки ─────────────────────────────────────────────────
 bool tempFlag12  = 0; // СТАН КЛАПАНА в авто режимі:
@@ -1188,6 +1194,8 @@ void readByteFromUART(byte data, int port) {
 //  ;value  → pwmFinishValue (ШІМ% кінець авто)     — завжди
 //  |value  → cubeFinishTemp (°C кінець ручний)     — завжди
 //  !value  → tenEnabled (1=увімк, 0=вимк ТЕН)      — завжди
+  //  >value  → target_volume (ліміт об'єму, мл)
+  //  <value  → max_flow_ml_h (макс. продуктивність, мл/год)
 // ═══════════════════════════════════════════════════════════════════════════
 
 void decodeUartCommand(const char* cmd) {
@@ -1196,31 +1204,42 @@ void decodeUartCommand(const char* cmd) {
   // 1. # → tempInt2 (ШІМ клапана 0..1023)
   p = strchr(cmd, '#');
   if (p && tenEnabled) {
-    tempInt2 = atoi(p + 1);
+    int val = atoi(p + 1);
+    if (val >= 0 && val <= 1023) {
+      tempInt2 = val;
+    }
   }
 
   // 2. @ → alarmTempLimit (температура сигналізації)
   p = strchr(cmd, '@');
   if (p) {
-    alarmTempLimit = (int)atof(p + 1);
+    float val = atof(p + 1);
+    if (val > 0.0f) {
+      alarmTempLimit = val;
+    }
   }
 
   // 3. * → pwmValue2 (верхня межа авто-ШІМ / стоп)
   p = strchr(cmd, '*');
   if (p) {
-    pressureSensorValue = atmPressure; 
-    pressureSensorInitialized = true;
-    pwmValue2 = atof(p + 1);
+    float val = atof(p + 1);
+    if (val > 0.0f) {
+      pressureSensorValue = atmPressure;
+      pressureSensorInitialized = true;
+      pwmValue2 = val;
+    }
   }
 
   // 4. & → pwmValue1 (нижня межа авто-ШІМ / старт)
   p = strchr(cmd, '&');
   if (p) {
-    pwmValue1 = atof(p + 1);
+    float val = atof(p + 1);
+    if (val > 0.0f) {
+      pwmValue1 = val;
+    }
   }
 
   // 5. $ → tempFlag33 (авто режим ШІМ: 0=ручний, 1=авто)
-  // Перевіряємо саме символ після $, щоб ігнорувати $ як термінатор у воді
   p = strchr(cmd, '$');
   if (p && tenEnabled) {
     char val = *(p + 1);
@@ -1249,55 +1268,102 @@ void decodeUartCommand(const char* cmd) {
   // 7. % → displayMiddleMode (режим дисплея)
   p = strchr(cmd, '%');
   if (p) {
-    displayMiddleMode = atoi(p + 1);
+    char val = *(p + 1);
+    if (val == '0' || val == '1' || val == '2') {
+      displayMiddleMode = (val - '0');
+    }
   }
 
   // 8. : → pwmPeriodMs (період ШІМ клапана)
   p = strchr(cmd, ':');
   if (p) {
-   // pwmPeriodMs = atoi(p + 1);
-   pwmPeriodMs = strtoul(p + 1,nullptr,10);
+    char next = *(p + 1);
+    if (next >= '0' && next <= '9') {
+      const char* end = p + 1;
+      while (*end >= '0' && *end <= '9') end++;
+
+      if (*end == '!' || *end == '\0') {
+        unsigned long val = strtoul(p + 1, nullptr, 10);
+        if (val >= 100 && val <= 60000UL) {
+          pwmPeriodMs = val;
+        }
+      }
+    }
   }
 
   // 9. ; → pwmFinishValue (ШІМ завершення)
   p = strchr(cmd, ';');
   if (p) {
-    pwmFinishValue = atoi(p + 1);
+    int val = atoi(p + 1);
+    if (val >= 0 && val <= 100) {
+      pwmFinishValue = val;
+    }
   }
 
   // 10. | → cubeFinishTemp (температура куба кінець)
-  // Реалізовано захист: якщо прийшов 0 або помилка — ставимо 100
   p = strchr(cmd, '|');
   if (p) {
     float val = atof(p + 1);
-    if (val <= 0.1) {
-      cubeFinishTemp = 100.0;
+    if (val <= 0.1f) {
+      cubeFinishTemp = 100.0f;
     } else {
       cubeFinishTemp = val;
     }
   }
 
   // 11. ! → tenEnabled (керування ТЕНом)
-  // Перевіряємо саме '1' або '0', щоб ! у кінці інших команд не вимикало ТЕН
   p = strchr(cmd, '!');
- if (p) {
+  if (p) {
     char val = *(p + 1);
     if (val == '1') {
-        tenEnabled = true;
-        tempFlag31 = 1;
+      tenEnabled = true;
+      tempFlag31 = 1;
     } else if (val == '0') {
-        tenEnabled = false;
-        tempInt2 = 0;
-        tempFlag33 = 0;
-        // ДОДАТИ!
-        strncpy(tempStr11Buf, "TEN OFF", sizeof(tempStr11Buf) - 1);
-        tempStr11Buf[sizeof(tempStr11Buf) - 1] = '\0';
-        tempFlag31 = 1;
+      tenEnabled = false;
+      tempInt2 = 0;
+      tempFlag33 = 0;
+      strncpy(tempStr11Buf, "TEN OFF", sizeof(tempStr11Buf) - 1);
+      tempStr11Buf[sizeof(tempStr11Buf) - 1] = '\0';
+      tempFlag31 = 1;
     }
-}
-}
-// ═══════════════════════════════════════════════════════════════════════════
-//  ПЕРЕДАЧА UART ПАКЕТУ (короткий — для Bluetooth)
+  }
+
+  // 12. > → target volume (мл)
+  p = strchr(cmd, '>');
+  if (p) {
+    char next = *(p + 1);
+    if ((next >= '0' && next <= '9') || next == '+' || next == '-') {
+      const char* end = p + 1;
+      while ((*end >= '0' && *end <= '9') || *end == '.' || *end == '+' || *end == '-') end++;
+
+      if (*end == '!' || *end == '\0') {
+        float val = atof(p + 1);
+        if (val >= 0.0f) {
+          target_volume = val;
+          total_selected_ml = 0.0f;
+          vol_last_ms = millis();
+        }
+      }
+    }
+  }
+
+  // 13. < → max flow (мл/год)
+  p = strchr(cmd, '<');
+  if (p) {
+    char next = *(p + 1);
+    if ((next >= '0' && next <= '9') || next == '+' || next == '-') {
+      const char* end = p + 1;
+      while ((*end >= '0' && *end <= '9') || *end == '.' || *end == '+' || *end == '-') end++;
+
+      if (*end == '!' || *end == '\0') {
+        float val = atof(p + 1);
+        if (val >= 10.0f && val <= 100000.0f) {
+          max_flow_ml_h = val;
+        }
+      }
+    }
+  }
+}//  ПЕРЕДАЧА UART ПАКЕТУ (короткий — для Bluetooth)
 // ═══════════════════════════════════════════════════════════════════════════
 //
 //  Формат: "HomeSamogon.ru/4.8,col,atm,cube,auto,valve,p1,p2,shim,alLim,hash,alT,alF2,water,%,"
@@ -1383,13 +1449,11 @@ void sendDataPacketwifi(Print &out) {
   out.print(pwmFinishValue, DEC);                    out.print(','); // pwmFinishValue
   out.print(pwmPeriodMs, DEC);                       out.print(','); // pwmPeriodMs
   out.print(tenEnabled ? '0' : '1');                 out.print(','); // tenEnabled: інверт: 0=ON, 1=OFF
-  out.print(finishFlag ? '1' : '0');                 out.print(','); // finishFlag: 1=іде, 0=кінець
-	printUptimeHMS(out);                               out.print(','); // cubeAlc -> uptime HH:MM:SS
-	out.print(tempFlag41 ? '1' : '0');                          out.print(','); // columnAlc placeholder
-
-// printFloat(out, calcCubeAlcohol(cubeTemp), 1);     out.print(','); // % спирту куб
-  //printFloat(out, calcColumnAlcohol(columnTemp), 1); out.print(','); // % спирту колона
-  out.println(F("%,"));                                              // кінець пакету
+    out.print(finishFlag ? '1' : '0');                 out.print(','); // finishFlag
+  printUptimeHMS(out);                               out.print(','); // uptime
+  out.print(tempFlag41 ? '1' : '0');                 out.print(','); // placeholder
+  printFloat(out, total_selected_ml, 1);             out.print(','); // volumeMl
+  out.println(F("%,"));                                            // кінець пакету                                            // кінець пакету
 }
 
 // =====================================================
@@ -2107,6 +2171,48 @@ if (isTimer(bmpSensorReadTime2, 5000)) {
     }
   }
 
+
+  // --- Підрахунок об'єму відбору ---
+  unsigned long vol_now = millis();
+  if (vol_last_ms == 0) vol_last_ms = vol_now;
+
+  bool isSelectionAllowed = tenEnabled && alarmFlag && finishFlag;
+  bool isValveActuallyOpen = false;
+
+  if (isSelectionAllowed) {
+    if (controlMode == 0) {
+      // Найточніше для релейного режиму: це вже фінальний дозвіл на відкриття клапана
+      isValveActuallyOpen = switchFlag9;
+    } else {
+      // Для interrupt PWM це наближена оцінка:
+      // якщо ШІМ > 0, то відбір дозволений
+      isValveActuallyOpen = (tempInt2 > 0);
+
+      // В авто-режимі додатково враховуємо START/STOP
+      if (tempFlag33 == 1) {
+        isValveActuallyOpen = isValveActuallyOpen && (tempFlag12 == 1);
+      }
+    }
+  }
+
+  if (isValveActuallyOpen) {
+    unsigned long delta = vol_now - vol_last_ms;
+    total_selected_ml += (double)delta * (max_flow_ml_h / 3600000.0);
+  }
+
+  vol_last_ms = vol_now;
+
+  // --- Автостоп по об'єму ---
+  if (target_volume > 0.0 && total_selected_ml >= target_volume) {
+    tempInt2 = 0;
+    tempFlag33 = 0;
+    target_volume = 0.0;
+    vol_last_ms = vol_now;
+
+    strncpy(tempStr11Buf, "VOLUME LIMIT", sizeof(tempStr11Buf) - 1);
+    tempStr11Buf[sizeof(tempStr11Buf) - 1] = '\0';
+    tempFlag31 = 1;
+  }
   // ═══════════════════════════════════════════════════════════════════════
   //  ЗУМЕР ТА ПІДСВІЧУВАННЯ LCD
   // ═══════════════════════════════════════════════════════════════════════
