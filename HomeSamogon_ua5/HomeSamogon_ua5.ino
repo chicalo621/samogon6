@@ -1340,8 +1340,8 @@ void decodeUartCommand(const char* cmd) {
         float val = atof(p + 1);
         if (val >= 0.0f) {
           target_volume = val;
-          total_selected_ml = 0.0f;
-          vol_last_ms = millis();
+         // total_selected_ml = 0.0f;
+          //vol_last_ms = millis();
         }
       }
     }
@@ -2172,36 +2172,43 @@ if (isTimer(bmpSensorReadTime2, 5000)) {
   }
 
 
-  // --- Підрахунок об'єму відбору ---
-  unsigned long vol_now = millis();
-  if (vol_last_ms == 0) vol_last_ms = vol_now;
+// --- Підрахунок об'єму відбору ---
+unsigned long vol_now = millis();
+if (vol_last_ms == 0) vol_last_ms = vol_now;
 
-  bool isSelectionAllowed = tenEnabled && alarmFlag && finishFlag;
-  bool isValveActuallyOpen = false;
+bool isSelectionAllowed = tenEnabled && alarmFlag && finishFlag;
+bool isValveActuallyOpen = false;
 
-  if (isSelectionAllowed) {
-    if (controlMode == 0) {
-      // Найточніше для релейного режиму: це вже фінальний дозвіл на відкриття клапана
-      isValveActuallyOpen = switchFlag9;
-    } else {
-      // Для interrupt PWM це наближена оцінка:
-      // якщо ШІМ > 0, то відбір дозволений
-      isValveActuallyOpen = (tempInt2 > 0);
-
-      // В авто-режимі додатково враховуємо START/STOP
-      if (tempFlag33 == 1) {
-        isValveActuallyOpen = isValveActuallyOpen && (tempFlag12 == 1);
-      }
-    }
+// Визначаємо, чи реально йде відбір
+if (isSelectionAllowed) {
+  if (tempFlag33 == 0) {
+    // РУЧНИЙ РЕЖИМ:
+    // якщо ШІМ більше 1 — вважаємо, що клапан відкритий
+    isValveActuallyOpen = (tempInt2 > 1);
+  } else {
+    // АВТО РЕЖИМ:
+    // відбір іде тільки якщо є ШІМ і стан START
+    isValveActuallyOpen = (tempInt2 > 0) && (tempFlag12 == 1);
   }
+}
 
-  if (isValveActuallyOpen) {
-    unsigned long delta = vol_now - vol_last_ms;
-    total_selected_ml += (double)delta * (max_flow_ml_h / 3600000.0);
-  }
-
+// У ручному режимі, коли клапан закритий, скидаємо об'єм
+if (tempFlag33 == 0 && tempInt2 <= 1) {
+  total_selected_ml = 0.0;
   vol_last_ms = vol_now;
+}
 
+// Додаємо об'єм тільки коли реально йде відбір
+if (isValveActuallyOpen) {
+  unsigned long delta = vol_now - vol_last_ms;
+
+  // Швидкість залежить від поточного ШІМу
+  double flow_now_ml_h = (max_flow_ml_h * tempInt2) / 1023.0;
+
+  total_selected_ml += (double)delta * (flow_now_ml_h / 3600000.0);
+}
+
+vol_last_ms = vol_now;
   // --- Автостоп по об'єму ---
   if (target_volume > 0.0 && total_selected_ml >= target_volume) {
     tempInt2 = 0;
