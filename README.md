@@ -1,240 +1,632 @@
-# Samogon — ESP8266 Serial ↔ MQTT Gateway
+# 🥃 Samogon6 / Самогон6
 
-Міст Serial ↔ MQTT на базі ESP8266 із сучасним веб-інтерфейсом, автооновленням IP, надійним керуванням WiFi-режимами та оновленням прошивки через MQTT.
+<div align="center">
 
----
+![Platform](https://img.shields.io/badge/platform-ESP8266-0A7EA4?style=for-the-badge&logo=espressif)
+![Language](https://img.shields.io/badge/language-Arduino%20%2F%20C%2B%2B-00979D?style=for-the-badge&logo=arduino)
+![Protocol](https://img.shields.io/badge/protocol-MQTT-660066?style=for-the-badge&logo=eclipsemosquitto)
+![Web UI](https://img.shields.io/badge/web-ui%20built--in-2ea44f?style=for-the-badge&logo=googlechrome)
+![OTA](https://img.shields.io/badge/update-OTA-orange?style=for-the-badge)
+![Status](https://img.shields.io/badge/status-in%20active%20development-success?style=for-the-badge)
 
-## 📚 Документація
+**ESP8266-based automation gateway for a home distillation / rectification setup**  
+**ESP8266-шлюз для автоматизації самогонного апарата, ректифікації та віддаленого керування**
 
-- **[ARDUINO_IDE_SETUP.md](ARDUINO_IDE_SETUP.md)** — покрокова інструкція для Arduino IDE
-- **[EXAMPLES.md](EXAMPLES.md)** — приклади інтеграції з Home Assistant, Node-RED
-- **[README.md](README.md)** — цей огляд проекту
-
----
-
-## Можливості
-
-- **WiFi:**  
-  - Підключення до роутера (STA)  
-  - Перехід у точку доступу (AP/hotspot) для налаштування
-  - **Захист:** перехід в AP можливий лише якщо поле SSID порожнє (уникає втрати доступу)
-  - **Автоматичне оновлення IP:** На сторінці налаштувань WiFi IP ESP (STA) оновлюється “на льоту” без перезавантаження сторінки
-  - **Скан WiFi:** Кнопка “Сканувати” з автоповтором до 3 разів, Unicode-friendly, вибір зі списку з автоматичним обрізанням пробілів
-- **Веб-інтерфейс:**  
-  - Головна сторінка статусу: відображає підключення, MQTT, серійні дані, аптайм  
-  - Сторінка налаштувань із вкладками WiFi/MQTT/System  
-  - Сторінка відправки MQTT та Serial команд  
-  - OTA-сторінка для оновлення прошивки через браузер
-- **Serial → MQTT:**  
-  - Прийом key=value даних із UART, автоматичний парсинг та публікація кожної пари у свій топік MQTT  
-  - Весь рядок також публікується як raw
-- **MQTT → Serial:**  
-  - Підписка на топік, надходження команд і пересилка у Serial
-- **OTA через MQTT:**  
-  - Оновлення прошивки бінарними чанками через MQTT-брокер, статус та прогрес у MQTT
-- **EEPROM:**  
-  - Збереження всіх налаштувань WiFi & MQTT
-- **Захист від помилок користувача:**  
-  - Обрізка пробілів у SSID  
-  - Якщо у WiFi обрано режим “hotspot (AP)” та SSID не очищено, режим не вмикається − це захист від блокування пристрою
-- **Стабільний reconnect WiFi STA:**  
-  - Періодичний перепідключення до роутера за таймером
+</div>
 
 ---
 
-## Формат Serial
+## 🇺🇦 Українською
 
-**Прийом (Serial → MQTT):**
-```
-key1=value1|key2=value2|key3=value3\r\n
-```
-Кожна пара публікується в `{pub_topic}/{key}` з payload `{value}`.  
-Весь рядок - у `{pub_topic}/raw`.
+### Що це за проєкт
 
-**Відправка (MQTT → Serial):**  
-З топіка `{sub_topic}/power` із payload `500` відправляється `power=500\r\n` в Serial.
+**Samogon6** — це прошивка для **ESP8266**, яка працює як мережевий шлюз і панель керування для автоматики самогонного апарата.
+
+Проєкт з'єднує:
+- **Arduino / контролер автоматики** по **Serial**,
+- **MQTT брокер** для віддаленого моніторингу та команд,
+- **вбудований веб-інтерфейс** для налаштування та локального керування,
+- **OTA-оновлення** через web або MQTT.
+
+По суті, це міст між "залізом" дистиляції та сучасним мережевим керуванням.
 
 ---
 
-## OTA оновлення через MQTT
+### Основні можливості
 
-| Крок         | Топік                  | Payload                   |
-|--------------|------------------------|---------------------------|
-| 1. Початок   | `{sub_topic}/ota/begin`| розмір прошивки (текстом) |
-| 2. Дані      | `{sub_topic}/ota/data` | бінарний чанк (≤4096 байт)|
-| 3. Завершення| `{sub_topic}/ota/end`  | будь-який/порожній        |
-| Скасування   | `{sub_topic}/ota/abort`| будь-який/порожній        |
+- 📶 **Wi‑Fi режими:**
+  - підключення до роутера (**STA**)
+  - власна точка доступу (**AP**) для первинного налаштування
+- 🌐 **Вбудований web UI**:
+  - сторінка статусу
+  - сторінка налаштувань Wi‑Fi / MQTT / system
+  - сторінка ручної відправки команд
+  - сторінка OTA-оновлення
+- 📡 **MQTT інтеграція**:
+  - публікація телеметрії
+  - прийом команд керування
+  - автоматичне формування топіків за `userToken / version / deviceType`
+- 🔌 **Serial ↔ MQTT шлюз** між ESP8266 та контролером автоматики
+- 💾 **Збереження налаштувань у EEPROM**
+- 🔄 **OTA оновлення**:
+  - через браузер
+  - через MQTT чанками
+- 🧠 **Основи автоматизації процесу дистиляції / ректифікації**
+- 🧪 окремі заготовки/модулі для **ректифікації, БЗК та НБК**
 
-**Статус оновлення:**
-- `{pub_topic}/ota/status` — `started`, `success, rebooting...`, `error: ...`, `aborted`
-- `{pub_topic}/ota/progress` — % завершеності (0–100)
+---
 
-**Приклад (Python):**
-```python
-import paho.mqtt.client as mqtt
-import time
+### Для чого саме цей проєкт
 
-broker = "192.168.1.100"
-sub_topic = "bridge/cmd"
-firmware_path = "firmware.bin"
-chunk_size = 4096
+Цей репозиторій орієнтований саме на **автоматизацію самогонного апарата**, а не просто на абстрактний MQTT gateway.
 
-client = mqtt.Client()
-client.connect(broker)
+З коду видно, що система вміє:
+- приймати дані від автоматики типу **HomeSamogon**;
+- відображати температури, стани, тиск, ШІМ та службові параметри;
+- передавати команди на керування:
+  - водою,
+  - ТЕНом,
+  - клапаном / ШІМ,
+  - аварійною температурою,
+  - режимами авто/ручного керування,
+  - параметрами старт/стоп,
+  - лімітами відбору та продуктивності;
+- готувати основу для режимів **ректифікації**, **БЗК** та **НБК**.
 
-with open(firmware_path, "rb") as f:
-    data = f.read()
+---
 
-client.publish(f"{sub_topic}/ota/begin", str(len(data)))
-time.sleep(1)
+### Архітектура
 
-for i in range(0, len(data), chunk_size):
-    chunk = data[i:i+chunk_size]
-    client.publish(f"{sub_topic}/ota/data", chunk)
-    time.sleep(0.1)
-
-time.sleep(1)
-client.publish(f"{sub_topic}/ota/end", "done")
+```text
+[Контролер автоматики / Arduino]
+            ⇅ Serial
+          [ESP8266]
+      ⇅ Wi‑Fi / Web / MQTT
+[Веб-інтерфейс]   [MQTT брокер]   [віддалений клієнт]
 ```
 
+ESP8266 тут виконує роль:
+- мережевого шлюзу,
+- локального web-сервера,
+- точки інтеграції з MQTT,
+- OTA-вузла для оновлення прошивки.
+
 ---
 
-## Встановлення
+### Web-інтерфейс
 
-### 1. Встановити бібліотеки
+Вбудований інтерфейс надає:
 
-**Через Arduino Library Manager:**
+- **`/`** — головна сторінка статусу
+- **`/settings`** — налаштування Wi‑Fi, MQTT, system
+- **`/send`** — ручна відправка Serial / MQTT команд
+- **`/update`** — OTA оновлення прошивки
+- **`/automation`** — сторінка/заготовка для автоматизації
 
-- В меню Arduino IDE:  
-  **Sketch → Include Library → Manage Libraries...**  
-  → встановити **PubSubClient** від Nick O'Leary
+API endpoints:
 
-**Для ESP Async Web Server вручну:**
-1. Завантажити:
-   - [ESPAsyncWebServer](https://github.com/me-no-dev/ESPAsyncWebServer/archive/master.zip)
-   - [ESPAsyncTCP](https://github.com/me-no-dev/ESPAsyncTCP/archive/master.zip)
-2. Розпакувати у `.../Arduino/libraries/`
-3. Перейменувати папки:
-   - `ESPAsyncWebServer-master` → `ESPAsyncWebServer`
-   - `ESPAsyncTCP-master` → `ESPAsyncTCP`
-4. Перезапустити Arduino IDE
+- **`/get_status`** — JSON статус пристрою
+- **`/save_wifi`** — збереження Wi‑Fi налаштувань
+- **`/save_mqtt`** — збереження MQTT налаштувань
+- **`/scan_wifi`** — сканування Wi‑Fi мереж
+- **`/api/serial_send?cmd=...`** — надсилання Serial команди
+- **`/api/mqtt_pub?topic=...&payload=...`** — MQTT publish
+- **`/restart`** — перезапуск ESP
+- **`/factory_reset`** — скидання налаштувань
+- **`/api/ota_upload`** — web OTA upload
 
-### 2. Встановити Board Package
+---
 
-**Arduino IDE → File → Preferences → Additional Board Manager URLs:**
+### Приклад MQTT топіків
+
+Якщо задано:
+- `userToken = 380991234567`
+- `deviceVersion = 1`
+- `deviceType = sam`
+
+тоді формуються топіки:
+
+- publish: `380991234567/1/sam/data`
+- subscribe: `380991234567/1/sam/cmd`
+
+Телеметрія публікується у підтемах типу:
+- `.../data/<key>`
+- `.../data/raw`
+- `.../data/status`
+- `.../data/ota/status`
+- `.../data/ota/progress`
+
+Команди приймаються через:
+- `.../cmd/<key>`
+- а також OTA-команди через `.../cmd/ota/...`
+
+---
+
+### Serial протокол та керування апаратом
+
+ESP приймає пакети від Arduino/автоматики та розбирає їх у структуровані поля.
+
+Підтримуються команди керування, зокрема:
+- `water` — керування водою
+- `shim` — значення ШІМ клапана
+- `PUBalarmLimit` — температура сигналізації
+- `autoEnd`, `autoStart`, `autoMode` — авто режим
+- `start`, `stop` — температури старт/стоп
+- `display` — центральне поле дисплея
+- `Periodkl` — період клапана
+- `pwmFinish` — завершення по ШІМ
+- `cubeFinish` — завершення по температурі куба
+- `tenControl` — керування ТЕН
+- `targetVolume` — цільовий об'єм відбору
+- `maxFlowMlH` — максимальна продуктивність
+- `raw` — raw команда без трансляції
+
+Це дає змогу будувати як простий моніторинг, так і повноцінне віддалене керування процесом.
+
+---
+
+### Режими автоматизації
+
+У репозиторії є окремі модулі, пов'язані з автоматизацією дистиляції:
+
+- **`distillation_modes.ino`** — логіка режимів ректифікації та БЗК
+- **`nbk.ino`** — адаптований модуль режиму НБК
+
+Ці модулі виглядають як напрямок розвитку проєкту в сторону:
+- автоматичного відбору по режимах,
+- стабілізації,
+- обмежень по температурі / тиску,
+- напівавтоматичної або автоматичної роботи колони.
+
+---
+
+### Структура проєкту
+
+```text
+samogon6/
+├── samogon.ino            # головний файл, setup/loop, EEPROM, ініціалізація
+├── config.h               # основні константи та конфігурація
+├── wifi_utils.ino         # Wi‑Fi STA/AP, reconnect, hotspot logic
+├── web_server.ino         # маршрути веб-сервера та API
+├── web_pages.h            # HTML сторінки, вбудовані у PROGMEM
+├── mqtt_client.ino        # MQTT логіка, subscribe/publish, callback
+├── serial_comm.ino        # міст між Serial та командами автоматики
+├── OTA.ino                # OTA через MQTT
+├── distillation_modes.ino # режими ректифікації / БЗК
+├── nbk.ino                # заготовка/ядро НБК
+├── install_libraries.bat  # допоміжний скрипт встановлення бібліотек
+└── libraries/             # локальні бібліотеки проєкту
 ```
+
+---
+
+### Швидкий старт
+
+#### 1. Встановити Arduino IDE та ESP8266 board package
+
+Додайте в **Additional Board Manager URLs**:
+
+```text
 https://arduino.esp8266.com/stable/package_esp8266com_index.json
 ```
-**Tools → Board → Boards Manager** → встановити **esp8266** (версія 3.0.0+)
 
-### 3. Компіляція
+Потім у **Boards Manager** встановіть пакет **esp8266**.
 
-1. Відкрити `samogon.ino` в Arduino IDE
-2. Tools → Board: Generic ESP8266 Module (або NodeMCU/Wemos D1 mini)
-3. Tools → Flash Size: 4MB (FS:2MB, OTA:~1019KB) або під свою плату
-4. Upload
+#### 2. Встановити бібліотеки
 
----
+Потрібні бібліотеки:
+- **PubSubClient**
+- **ESPAsyncWebServer**
+- **ESPAsyncTCP**
 
-## Веб-інтерфейс
+У репозиторії є файл:
+- `install_libraries.bat`
 
-| Сторінка         | URL                                      |
-|------------------|------------------------------------------|
-| Головна (статус) | `http://192.168.4.1/` (AP) / `http://<IP>/` (STA) |
-| Налаштування     | `http://<IP>/settings`                   |
-| Відправка команд | `http://<IP>/send`                       |
-| OTA оновлення    | `http://<IP>/update`                     |
+який підказує порядок встановлення.
 
----
+#### 3. Відкрити проєкт
 
-## Налаштування за замовчуванням
+В Arduino IDE відкрийте:
 
-| Параметр   | Значення         |
-|------------|------------------|
-| AP SSID    | `MQTT_Bridge`    |
-| AP Пароль  | `12345678`       |
-| AP IP      | `192.168.4.1`    |
-| Serial     | 9600 бод         |
-| MQTT порт  | 1883             |
-
----
-
-## Структура проєкту
-
-```
-samogon/
-├── samogon.ino        — Головний файл, setup/loop, EEPROM
-├── config.h           — Конфігурація, адреси EEPROM, дефайни
-├── wifi_utils.ino     — WiFi STA+AP, підключення, реконнект
-├── web_server.ino     — Веб-сервер, всі API-маршрути
-├── web_pages.h        — HTML сторінки (PROGMEM)
-├── mqtt_client.ino    — MQTT клієнт
-├── serial_comm.ino    — Serial прийом, парсинг, відправка
-├── OTA.ino            — OTA через MQTT
-└── install_libraries.bat — Автоматичне встановлення бібліотек
+```text
+samogon.ino
 ```
 
----
+#### 4. Обрати плату
 
-## API endpoints
+Підійде одна з ESP8266-плат, наприклад:
+- **NodeMCU 1.0 (ESP-12E Module)**
+- **Wemos D1 mini**
+- або **Generic ESP8266 Module**
 
-| Endpoint                    | Метод | Опис                                 |
-|-----------------------------|-------|---------------------------------------|
-| `/get_status`               | GET   | JSON: статус WiFi, MQTT, Serial       |
-| `/save_wifi`                | POST  | Зберегти налаштування WiFi           |
-| `/save_mqtt`                | POST  | Зберегти MQTT налаштування           |
-| `/scan_wifi`                | GET   | Сканування усіх доступних WiFi мереж |
-| `/api/serial_send?cmd=...`  | GET   | Надіслати команду у Serial           |
-| `/api/mqtt_pub?topic=...&payload=...`| GET| Опублікувати у MQTT                  |
-| `/restart`                  | GET   | Перезапуск ESP                       |
-| `/factory_reset`            | GET   | Скидання всіх налаштувань            |
+#### 5. Прошити ESP8266
+
+Після прошивки:
+- якщо Wi‑Fi не налаштований — пристрій підніме **AP**;
+- якщо Wi‑Fi збережений — підключиться до роутера і дасть доступ до web UI.
 
 ---
 
-## Карта EEPROM (512 байт)
+### Налаштування за замовчуванням
 
-| Адреса | Розмір | Поле               |
-|--------|--------|--------------------|
-| 0      | 1      | Маркер (0xAB)      |
-| 1      | 33     | WiFi SSID          |
-| 34     | 33     | WiFi Password      |
-| 67     | 41     | MQTT Server        |
-| 108    | 2      | MQTT Port          |
-| 110    | 33     | MQTT User          |
-| 143    | 33     | MQTT Password      |
-| 176    | 65     | MQTT Publish Topic |
-| 241    | 65     | MQTT Subscribe Top.|
-| 306    | 33     | MQTT Client ID     |
-| 339–511| -      | Резерв             |
+#### Wi‑Fi
+- AP SSID: `Samogon_Setup_<ChipID>`
+- AP password: `12345678`
+- якщо `savedSSID` порожній — старт у AP режимі
 
----
+#### MQTT
+- server: `vmi516392.contaboserver.net`
+- port: `9001`
+- user: `samovar`
+- fallback pub topic: `sam/data`
+- fallback sub topic: `sam/cmd`
 
-## Основні зміни та новації 2026
-
-- **Захист від неправильного налаштування WiFi:** Перехід у AP лише за порожнього SSID
-- **Оновлення IP на сторінці налаштувань STA** (автоматично через JS)
-- **Стабільна обрізка SSID** (завжди trim і при виборі, і при сабміті, і в бекенді)
-- **Покращене сканування WiFi:** Повтор сканування до 3 разів для reliability
-- **Веб-розділення сторінок:** Всі функції винесені у окремі вкладки
-- **OTA через MQTT та Web** працюють паралельно
-- **Автоматичний reconnect STA із інтервалом** не впливає на роботу точок доступу
-- Всі JS-фрагменти у web_pages.h виправлені, дублікати та баги прибрані
+> **Увага:** перед реальним використанням рекомендовано змінити мережеві та MQTT параметри під свою інфраструктуру.
 
 ---
 
-## TODO
+### OTA оновлення
 
-- Автоматичне вимкнення AP через 10 хв (roadmap)
-- Графіки, автоматизація, розширена інтеграція з Home Assistant
-- Захист вебінтерфейсу паролем
+#### Через web
+Відкрий:
+
+```text
+http://<device-ip>/update
+```
+
+та завантаж `.bin` файл прошивки.
+
+#### Через MQTT
+Використовуються топіки:
+- `{sub_topic}/ota/begin`
+- `{sub_topic}/ota/data`
+- `{sub_topic}/ota/end`
+- `{sub_topic}/ota/abort`
+
+Статус і прогрес:
+- `{pub_topic}/ota/status`
+- `{pub_topic}/ota/progress`
 
 ---
 
-## Ліцензія та авторство
+### Стан проєкту
 
-Автор: [chicalo621](https://github.com/chicalo621)  
-Зворотній зв'язок та баги — через [issues](https://github.com/chicalo621/samogon6/issues)
+Проєкт уже має робочі частини для:
+- web UI,
+- Wi‑Fi конфігурації,
+- MQTT інтеграції,
+- Serial bridge,
+- OTA,
+- базової автоматизації.
+
+Також видно активний розвиток у бік **спеціалізованої автоматики для дистиляції / ректифікації**.
 
 ---
 
-**Всі актуальні можливості, логіка та захист відповідають вихідному коду на березень 2026 року.**
+### Для кого цей репозиторій
+
+Проєкт може бути корисний, якщо ти хочеш:
+- підключити автоматику самогонного апарата до Wi‑Fi;
+- моніторити параметри через MQTT;
+- керувати апаратом з телефона або web-інтерфейсу;
+- інтегрувати систему з Home Assistant, Node-RED або власним мобільним застосунком;
+- побудувати більш просунуту автоматику ректифікації / НБК.
+
+---
+
+## 🇬🇧 English
+
+### What this project is
+
+**Samogon6** is an **ESP8266 firmware** that acts as a network gateway and control panel for a **home distillation / rectification setup**.
+
+It connects:
+- an **Arduino / automation controller** over **Serial**,
+- an **MQTT broker** for telemetry and remote commands,
+- a built-in **web interface** for local configuration,
+- **OTA updates** via web or MQTT.
+
+In practice, it is a bridge between the distillation hardware and modern network-based control.
+
+---
+
+### Key features
+
+- 📶 **Wi‑Fi modes**:
+  - STA client mode
+  - AP hotspot mode for setup
+- 🌐 **Built-in web UI**:
+  - status page
+  - Wi‑Fi / MQTT / system settings
+  - manual command page
+  - OTA update page
+- 📡 **MQTT integration**:
+  - telemetry publishing
+  - remote command receiving
+  - automatic topic generation from `userToken / version / deviceType`
+- 🔌 **Serial ↔ MQTT bridge** between ESP8266 and automation controller
+- 💾 **EEPROM-based settings storage**
+- 🔄 **OTA updates**:
+  - web upload
+  - MQTT chunked firmware transfer
+- 🧠 building blocks for **distillation / rectification automation**
+- 🧪 separate modules for **rectification modes, BZK, and NBK**
+
+---
+
+### Why this repository is special
+
+This is not just a generic MQTT bridge.
+
+The repository is clearly focused on **moonshine still / distillation apparatus automation**. From the codebase, the system is designed to:
+- parse **HomeSamogon-like** telemetry packets,
+- expose temperatures, pressure, PWM, status flags and service values,
+- send commands for:
+  - water control,
+  - heater (TEN) control,
+  - valve / PWM control,
+  - alarm temperature,
+  - automatic/manual mode,
+  - start/stop parameters,
+  - volume / flow limits,
+- evolve toward advanced rectification and process control.
+
+---
+
+### Project architecture
+
+```text
+[Automation controller / Arduino]
+              ⇅ Serial
+            [ESP8266]
+       ⇅ Wi‑Fi / Web / MQTT
+[Web UI]     [MQTT broker]     [Remote client]
+```
+
+ESP8266 acts as:
+- a network gateway,
+- a local web server,
+- an MQTT integration layer,
+- an OTA update node.
+
+---
+
+### Web interface
+
+Built-in routes include:
+
+- **`/`** — status dashboard
+- **`/settings`** — Wi‑Fi, MQTT and system settings
+- **`/send`** — manual Serial / MQTT command sending
+- **`/update`** — OTA update page
+- **`/automation`** — automation UI prototype page
+
+API endpoints:
+
+- **`/get_status`** — device JSON status
+- **`/save_wifi`** — save Wi‑Fi settings
+- **`/save_mqtt`** — save MQTT settings
+- **`/scan_wifi`** — scan Wi‑Fi networks
+- **`/api/serial_send?cmd=...`** — send Serial command
+- **`/api/mqtt_pub?topic=...&payload=...`** — publish to MQTT
+- **`/restart`** — reboot ESP
+- **`/factory_reset`** — reset saved settings
+- **`/api/ota_upload`** — web OTA firmware upload
+
+---
+
+### Example MQTT topics
+
+If:
+- `userToken = 380991234567`
+- `deviceVersion = 1`
+- `deviceType = sam`
+
+then the generated topics are:
+
+- publish: `380991234567/1/sam/data`
+- subscribe: `380991234567/1/sam/cmd`
+
+Telemetry can be published under:
+- `.../data/<key>`
+- `.../data/raw`
+- `.../data/status`
+- `.../data/ota/status`
+- `.../data/ota/progress`
+
+Commands are received through:
+- `.../cmd/<key>`
+- OTA topics under `.../cmd/ota/...`
+
+---
+
+### Serial protocol and device control
+
+ESP parses incoming automation packets and maps them into named fields.
+
+Supported command keys include:
+- `water`
+- `shim`
+- `PUBalarmLimit`
+- `autoEnd`
+- `autoStart`
+- `autoMode`
+- `start`
+- `stop`
+- `display`
+- `Periodkl`
+- `pwmFinish`
+- `cubeFinish`
+- `tenControl`
+- `targetVolume`
+- `maxFlowMlH`
+- `raw`
+
+This makes the firmware suitable for both monitoring and remote process control.
+
+---
+
+### Automation modes
+
+The repository already contains modules related to distillation automation:
+
+- **`distillation_modes.ino`** — rectification and BZK logic
+- **`nbk.ino`** — adapted NBK mode core/module
+
+These indicate a roadmap toward:
+- automatic takeoff modes,
+- stabilization logic,
+- pressure/temperature safety handling,
+- semi-automatic or fully automatic column operation.
+
+---
+
+### Project structure
+
+```text
+samogon6/
+├── samogon.ino
+├── config.h
+├── wifi_utils.ino
+├── web_server.ino
+├── web_pages.h
+├── mqtt_client.ino
+├── serial_comm.ino
+├── OTA.ino
+├── distillation_modes.ino
+├── nbk.ino
+├── install_libraries.bat
+└── libraries/
+```
+
+---
+
+### Quick start
+
+#### 1. Install Arduino IDE and ESP8266 board package
+
+Add to **Additional Board Manager URLs**:
+
+```text
+https://arduino.esp8266.com/stable/package_esp8266com_index.json
+```
+
+Then install the **esp8266** board package.
+
+#### 2. Install dependencies
+
+Required libraries:
+- **PubSubClient**
+- **ESPAsyncWebServer**
+- **ESPAsyncTCP**
+
+See:
+- `install_libraries.bat`
+
+#### 3. Open the project
+
+Open:
+
+```text
+samogon.ino
+```
+
+#### 4. Select board
+
+Typical boards:
+- **NodeMCU 1.0 (ESP-12E Module)**
+- **Wemos D1 mini**
+- **Generic ESP8266 Module**
+
+#### 5. Flash the firmware
+
+After upload:
+- if Wi‑Fi is not configured, the device starts in **AP mode**;
+- if Wi‑Fi is already configured, it connects to the router and serves the web UI.
+
+---
+
+### Default settings
+
+#### Wi‑Fi
+- AP SSID: `Samogon_Setup_<ChipID>`
+- AP password: `12345678`
+- empty saved SSID means AP startup mode
+
+#### MQTT
+- server: `vmi516392.contaboserver.net`
+- port: `9001`
+- user: `samovar`
+- fallback pub topic: `sam/data`
+- fallback sub topic: `sam/cmd`
+
+> **Warning:** before real-world usage, update Wi‑Fi and MQTT settings for your own infrastructure.
+
+---
+
+### OTA updates
+
+#### Via web
+Open:
+
+```text
+http://<device-ip>/update
+```
+
+and upload the compiled `.bin` firmware.
+
+#### Via MQTT
+Topics used:
+- `{sub_topic}/ota/begin`
+- `{sub_topic}/ota/data`
+- `{sub_topic}/ota/end`
+- `{sub_topic}/ota/abort`
+
+Progress/status:
+- `{pub_topic}/ota/status`
+- `{pub_topic}/ota/progress`
+
+---
+
+### Repository status
+
+The project already contains working parts for:
+- web UI,
+- Wi‑Fi setup,
+- MQTT integration,
+- Serial bridge,
+- OTA,
+- early automation logic.
+
+The codebase also clearly points toward deeper **distillation / rectification automation**.
+
+---
+
+### Who this is for
+
+This repository may be useful if you want to:
+- connect a distillation controller to Wi‑Fi,
+- monitor process values through MQTT,
+- control the setup from a phone or browser,
+- integrate with Home Assistant, Node-RED, or a custom mobile app,
+- build more advanced rectification / NBK automation.
+
+---
+
+## ⚠️ Safety note / Зауваження щодо безпеки
+
+**UA:** Автоматизація нагріву, клапанів, води та процесів дистиляції вимагає уважного тестування. Використовуйте систему тільки з розумінням ризиків, із захистом від перегріву, протікання та аварійних станів.  
+**EN:** Automating heaters, valves, cooling water and distillation processes requires careful testing. Use this project only with a full understanding of the risks and with proper thermal, electrical and fail-safe protection.
+
+---
+
+## 👤 Author
+
+- GitHub: **[@chicalo621](https://github.com/chicalo621)**
+- Repository: **`chicalo621/samogon6`**
+
+If you want, I can also prepare a next iteration with:
+- screenshots section,
+- wiring/pinout section,
+- Home Assistant / Node-RED examples,
+- a cleaner badges row and a table of supported commands.
