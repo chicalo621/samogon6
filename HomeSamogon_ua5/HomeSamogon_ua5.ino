@@ -1517,8 +1517,8 @@ void setup() {
   // Клапан: вихід, при старті — ЗАКРИТИЙ (HIGH)
   // ТЕН вимкнений → клапан завжди закритий до команди !1
   pinMode(VALVE_RELAY_DIRECT_PIN, OUTPUT);
-  digitalWrite(VALVE_RELAY_DIRECT_PIN, HIGH);
-
+  //digitalWrite(VALVE_RELAY_DIRECT_PIN, HIGH); //на реле
+  digitalWrite(VALVE_RELAY_DIRECT_PIN, LOW); //на транзистор
   // СТАНЕ:
 // A2 ПЕРИФЕРІЯ: HIGH = реле не світиться = вода вимкнена
 pinMode(PERIPHERY_OUTPUT_PIN, OUTPUT);
@@ -2055,7 +2055,8 @@ if (isTimer(bmpSensorReadTime2, 5000)) {
     // Клапан примусово закритий (HIGH)
     // ШІМ ге��ератор зупинений
     // Всі ШІМ прапори скинуті
-    digitalWrite(VALVE_RELAY_DIRECT_PIN, HIGH); // Клапан ЗАКРИТИЙ
+    //digitalWrite(VALVE_RELAY_DIRECT_PIN, HIGH); // Клапан ЗАКРИТИЙ реле
+	digitalWrite(VALVE_RELAY_DIRECT_PIN, LOW); // Клапан ЗАКРИТИЙтранзистор
    // valvePwmState  = false;
     pwmCoarseFlag  = 0;
     pwmFineFlag    = 0;
@@ -2166,7 +2167,8 @@ if (isTimer(bmpSensorReadTime2, 5000)) {
     } else {
       // Режим 0: дискретне реле (LOW=відкритий, HIGH=закритий)
       // Інверсія: switchFlag9=true → LOW (відкритий)
-      digitalWrite(VALVE_RELAY_DIRECT_PIN, !(switchFlag9));
+      //digitalWrite(VALVE_RELAY_DIRECT_PIN, !(switchFlag9));// реле
+	      digitalWrite(VALVE_RELAY_DIRECT_PIN, (switchFlag9));//ТРАНЗИСТОР
       //valvePwmState = false;
     }
   }
@@ -2981,5 +2983,5 @@ void extendmotor() {
   counter++;
   if (counter >= maxCount) counter = 0;
 
-  digitalWrite(VALVE_RELAY_DIRECT_PIN, (counter < dutyCount) ? HIGH : LOW);
+  digitalWrite(VALVE_RELAY_DIRECT_PIN, (counter < dutyCount) ? HIGH : LOW);//реле
 }
