@@ -1522,8 +1522,8 @@ void setup() {
   // Клапан: вихід, при старті — ЗАКРИТИЙ (HIGH)
   // ТЕН вимкнений → клапан завжди закритий до команди !1
   pinMode(VALVE_RELAY_DIRECT_PIN, OUTPUT);
-  //digitalWrite(VALVE_RELAY_DIRECT_PIN, HIGH); //на реле
-  digitalWrite(VALVE_RELAY_DIRECT_PIN, LOW); //на транзистор
+  digitalWrite(VALVE_RELAY_DIRECT_PIN, HIGH); //на реле
+  //digitalWrite(VALVE_RELAY_DIRECT_PIN, LOW); //на транзистор
   // СТАНЕ:
 // A2 ПЕРИФЕРІЯ: HIGH = реле не світиться = вода вимкнена
 pinMode(PERIPHERY_OUTPUT_PIN, OUTPUT);
@@ -2060,8 +2060,8 @@ if (isTimer(bmpSensorReadTime2, 5000)) {
     // Клапан примусово закритий (HIGH)
     // ШІМ ге��ератор зупинений
     // Всі ШІМ прапори скинуті
-    //digitalWrite(VALVE_RELAY_DIRECT_PIN, HIGH); // Клапан ЗАКРИТИЙ реле
-	digitalWrite(VALVE_RELAY_DIRECT_PIN, LOW); // Клапан ЗАКРИТИЙтранзистор
+    digitalWrite(VALVE_RELAY_DIRECT_PIN, HIGH); // Клапан ЗАКРИТИЙ реле
+	//digitalWrite(VALVE_RELAY_DIRECT_PIN, LOW); // Клапан ЗАКРИТИЙтранзистор
    // valvePwmState  = false;
     pwmCoarseFlag  = 0;
     pwmFineFlag    = 0;
@@ -2173,9 +2173,9 @@ if (isTimer(bmpSensorReadTime2, 5000)) {
   if (controlMode == 2) {
   updateStepperRate();
 }
-updateSelectedVolume();
-  }
 
+  }
+updateSelectedVolume();
 /* 
 // --- Підрахунок об'єму відбору ---
 unsigned long vol_now = millis();
@@ -2732,75 +2732,155 @@ void updateStepperRate() {
   stepPeriodUs = (uint32_t)(1000000.0 / steps_per_s);
 }
 void updateSelectedVolume() {
-  static bool lastValveOpen = false;          // Для режиму клапана (controlMode == 0)
-  static unsigned long valveOpenStartMs = 0;  // Час початку відкриття клапана
-  static unsigned long motorLastMs = 0;       // Для режиму мотора (controlMode == 1)
+  // ─────────────────────────────────────────────────────────────
+  //  ПІДРАХУНОК ВІДБОРУ:
+  //   controlMode == 0 → клапан: рахуємо по фактичному часу відкриття
+  //   controlMode == 1 → мотор:  рахуємо інтегруванням потоку по часу
+  //   controlMode == 2 → stepper: рахуємо інтегруванням потоку по часу
+  //
+  //  ДОДАТКОВА ЛОГІКА:
+  //   - якщо відбір був неактивний, а потім став активний вперше,
+  //     вважаємо це стартом нового циклу і скидаємо total_selected_ml
+  //   - для ручного режиму активність = tempInt2 > 1
+  //   - для авто режиму активність = tempInt2 > 0 && tempFlag12 == 1
+  //   - рахунок дозволений тільки якщо tenEnabled && alarmFlag && finishFlag
+  // ─────────────────────────────────────────────────────────────
 
-  const bool selectionAllowed = tenEnabled && alarmFlag && finishFlag;
+  // Попередній стан "відбір реально йде" (для детекції нового старту)
+  static bool lastSelectionActive = false;
+
+  // Для режиму клапана:
+  // lastValveOpen      = чи був клапан фізично відкритий на попередньому виклику
+  // valveOpenStartMs   = момент, коли клапан відкрився
+  static bool lastValveOpen = false;
+  static unsigned long valveOpenStartMs = 0UL;
+
+  // Для мотору/stepper:
+  // driveLastMs = попередній момент часу для інтегрування об'єму по delta time
+  static unsigned long driveLastMs = 0UL;
+
   const unsigned long now = millis();
 
-  // ── РЕЖИМ 0: КЛАПАН ─────────────────────────────────────────────
+  // ── Дозвіл на відбір взагалі ──────────────────────────────────
+  // Якщо ТЕН вимкнений, є аварія або перегонка завершена —
+  // об'єм не додаємо.
+  const bool selectionAllowed = tenEnabled && alarmFlag && finishFlag;
+
+  // ── Визначаємо, чи реально ЗАРАЗ іде відбір ───────────────────
+  // Ручний режим:
+  //   tempFlag33 == 0, відбір активний якщо tempInt2 > 1
+  //
+  // Авто режим:
+  //   tempFlag33 == 1, відбір активний якщо tempInt2 > 0 і tempFlag12 == 1
+  bool selectionActiveNow = false;
+
+  if (selectionAllowed) {
+    if (tempFlag33 == 0) {
+      // Ручний режим
+      selectionActiveNow = (tempInt2 > 1);
+    } else {
+      // Авто режим
+      selectionActiveNow = (tempInt2 > 0) && (tempFlag12 == 1);
+    }
+  }
+
+  // ── Старт нового циклу відбору ────────────────────────────────
+  // Якщо раніше відбір НЕ йшов, а тепер пішов —
+  // це вважаємо новим стартом і скидаємо накопичений об'єм.
+  if (selectionActiveNow && !lastSelectionActive) {
+    total_selected_ml = 0.0;
+
+    // Синхронізація таймерів, щоб не було стрибка на першому циклі
+    driveLastMs = now;
+    valveOpenStartMs = now;
+  }
+
+  // ── РЕЖИМ 0: КЛАПАН ───────────────────────────────────────────
+  // Рахуємо тільки фактичний час, коли клапан реально відкритий.
+  // Це захищає від "мікронарахувань" на кожному loop().
   if (controlMode == 0) {
+    // Клапан вважаємо реально відкритим тільки якщо:
+    //   1) відбір дозволений
+    //   2) фінальний керуючий сигнал switchFlag9 = true
     const bool valveOpenNow = selectionAllowed && switchFlag9;
 
-    // Клапан щойно відкрився
+    // Клапан щойно відкрився → запам'ятовуємо час відкриття
     if (valveOpenNow && !lastValveOpen) {
       valveOpenStartMs = now;
     }
 
-    // Клапан щойно закрився
+    // Клапан щойно закрився → дораховуємо об'єм за весь інтервал відкриття
     if (!valveOpenNow && lastValveOpen) {
       unsigned long actual_open_ms = now - valveOpenStartMs;
-      total_selected_ml += ((double)actual_open_ms * max_flow_ml_h) / 3600000.0;
+
+      // Поки клапан відкритий, вважаємо потік = max_flow_ml_h
+      total_selected_ml += ((double)actual_open_ms * (double)max_flow_ml_h) / 3600000.0;
     }
 
     lastValveOpen = valveOpenNow;
-    motorLastMs = now; // синхронізація, щоб при переході з mode1 не було стрибка
+
+    // Синхронізація таймера мотор/stepper-режимів при перемиканні controlMode
+    driveLastMs = now;
   }
 
-  // ── РЕЖИМ 1: МОТОР / НАСОС PWM ─────────────────────────────────
+  // ── РЕЖИМ 1: МОТОР / НАСОС PWM ────────────────────────────────
+  // Рахуємо інтегруванням потоку по часу.
   else if (controlMode == 1) {
-    if (motorLastMs == 0) motorLastMs = now;
+    if (driveLastMs == 0UL) driveLastMs = now;
 
-    unsigned long delta = now - motorLastMs;
-    motorLastMs = now;
+    unsigned long delta = now - driveLastMs;
+    driveLastMs = now;
 
-    if (selectionAllowed && tempInt2 > 0) {
+    if (selectionActiveNow) {
+      // Поточний потік пропорційний tempInt2
       double flow_now_ml_h = ((double)max_flow_ml_h * (double)tempInt2) / 1023.0;
       total_selected_ml += ((double)delta * flow_now_ml_h) / 3600000.0;
     }
 
-    // Скидаємо клапанний стан
+    // При не-клапанному режимі стан фізичного клапана не використовуємо
     lastValveOpen = false;
   }
 
-  // ── МАЙБУТНІЙ РЕЖИМ 2: КРОКОВИЙ ДВИГУН ─────────────────────────
+  // ── РЕЖИМ 2: КРОКОВИЙ ДВИГУН ──────────────────────────────────
+  // Логіка підрахунку така ж, як у режимі мотора:
+  // інтегруємо потік по часу.
   else if (controlMode == 2) {
-  if (motorLastMs == 0) motorLastMs = now;
+    if (driveLastMs == 0UL) driveLastMs = now;
 
-  unsigned long delta = now - motorLastMs;
-  motorLastMs = now;
+    unsigned long delta = now - driveLastMs;
+    driveLastMs = now;
 
-  if (selectionAllowed && tempInt2 > 0) {
-    double flow_now_ml_h = ((double)max_flow_ml_h * (double)tempInt2) / 1023.0;
-    total_selected_ml += ((double)delta * flow_now_ml_h) / 3600000.0;
+    if (selectionActiveNow) {
+      // Поточний потік пропорційний tempInt2
+      double flow_now_ml_h = ((double)max_flow_ml_h * (double)tempInt2) / 1023.0;
+      total_selected_ml += ((double)delta * flow_now_ml_h) / 3600000.0;
+    }
+
+    lastValveOpen = false;
   }
 
-  lastValveOpen = false;
-}
-  // ── Автостоп по об'єму ─────────────────────────────────────────
+  // ── Запам'ятовуємо поточний стан активності відбору ───────────
+  lastSelectionActive = selectionActiveNow;
+
+  // ── Автостоп по об'єму ────────────────────────────────────────
+  // Якщо заданий target_volume і ми його досягли —
+  // зупиняємо відбір.
   if (target_volume > 0.0 && total_selected_ml >= target_volume) {
     tempInt2 = 0;
     tempFlag33 = 0;
     target_volume = 0.0;
 
+    // Синхронізація після автостопу
+    driveLastMs = now;
+    valveOpenStartMs = now;
+    lastValveOpen = false;
+    lastSelectionActive = false;
+
     strncpy(tempStr11Buf, "VOLUME LIMIT", sizeof(tempStr11Buf) - 1);
     tempStr11Buf[sizeof(tempStr11Buf) - 1] = '\0';
     tempFlag31 = 1;
   }
-}// ─── isTimer: перевірка чи пройшов заданий час ───────────────────────────────
-// startTime — мітка часу початку (millis() у момент старту)
-// period    — необхідний інтервал у мілісекундах
+}// period    — необхідний інтервал у мілісекундах
 // Повертає true якщо з моменту startTime пройшло >= period мс
 // Безпечно при переповненні millis() (через беззнакове віднімання)
 
@@ -3073,7 +3153,8 @@ void extendmotor() {
 
   // Якщо робота заборонена — вихід вимикаємо
   if (!tenEnabled || alarmFlag == 0 || finishFlag == 0) {
-    digitalWrite(VALVE_RELAY_DIRECT_PIN, LOW);
+	  digitalWrite(VALVE_RELAY_DIRECT_PIN, HIGH); // на реле
+   // digitalWrite(VALVE_RELAY_DIRECT_PIN, LOW); // на НАСОС
     return;
   }
 
@@ -3125,5 +3206,6 @@ void extendmotor() {
   }
 
   // ── Інші режими / клапан ───────────────────────────────────────
-  digitalWrite(VALVE_RELAY_DIRECT_PIN, LOW);
+//digitalWrite(VALVE_RELAY_DIRECT_PIN, HIGH); //РЕЛЕ
+ //digitalWrite(VALVE_RELAY_DIRECT_PIN, LOW);//НАСОС
 }
