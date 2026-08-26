@@ -227,6 +227,24 @@ void setArduinoCommand(String key, String value) {
     cmd = value;
   }
 
+  // ── Вибір головного режиму (distillation / bbk / stop)
+  else if (key == "mainMode") {
+    setMainMode(value);
+    return;
+  }
+
+  // ── Вибір стану дистиляції
+  else if (key == "distState") {
+    setDistState(value);
+    return;
+  }
+
+  // ── Вибір стану ББК
+  else if (key == "bzkState") {
+    setBZKState(value);
+    return;
+  }
+
   // Невідомий ключ
   else {
     Serial1.println("[CMD] Невідомий ключ: " + key);
