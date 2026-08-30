@@ -629,6 +629,32 @@ void decodeUartCommand(const char* cmd) {
       // alarmFlag та всі таймери продовжують роботу штатно
     }
   }
+
+  // %value~ → displayMiddleMode (центральна позиція дисплея)
+  p = strchr(cmd, '%');
+  if (p) {
+    char val = *(p + 1);
+    if (val == '0') displayMiddleMode = false;
+    if (val == '1') displayMiddleMode = true;
+  }
+
+  // :value! → pwmPeriodMs (період клапана ms)
+  p = strchr(cmd, ':');
+  if (p) {
+    pwmPeriodMs = atoi(p + 1);
+  }
+
+  // ;value! → pwmFinishValue (дистиляція % ШІМ)
+  p = strchr(cmd, ';');
+  if (p) {
+    pwmFinishValue = atoi(p + 1);
+  }
+
+  // |value! → cubeFinishTemp (дистиляція по температурі куба)
+  p = strchr(cmd, '|');
+  if (p) {
+    cubeFinishTemp = atof(p + 1);
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
