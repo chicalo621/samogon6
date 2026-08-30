@@ -96,9 +96,9 @@ bool freeLogicQ1StateArr[] = { 0, 1 };
 volatile int powerDownCount = 0;
 bool columnSensorFlag = 1;
 bool cubeSensorFlag = 1;
-float columnTemp;
-float cubeTemp;
-float alarmTemp;
+float columnTemp  = 0.0;
+float cubeTemp    = 0.0;
+float alarmTemp   = 0.0;
 float atmPressure = 760;
 float cubeTempCorrection = 0;
 bool pressureCorrectionEnabled = 1;
@@ -123,6 +123,7 @@ float pwmValue1 = 777;//stop
 float pwmValue2 = 777; //start
 float pressureSensorValue = 0;
 bool pressureSensorInitialized = false;
+bool sensorsInitialized = false;       // false = датчики ще не прочитані жодного разу
 bool tenEnabled = false;           // ТЕН: false = вимкнений за замовчуванням
 bool tempFlag33 = 0;
 int tempInt2 = 0;//shim
@@ -130,7 +131,7 @@ bool pwmCoarseFlag = 0;
 bool pwmFineFlag = 0;
 bool tempFlag12 = 0;
 bool finishFlag = 1;
-bool finishFlag2;
+bool finishFlag2 = false;
 bool tempFlag28 = 0;
 bool tempFlag20 = 1;
 bool tempFlag41 = 0;
@@ -453,22 +454,50 @@ void displayMenu() {
 }
 
 void handleEncoderMenu() {
+  // ── Подвійний клік — увімкнути/вимкнути меню ──────────────────────────
   if (enc.hasClicks(2)) {
     encoderMenuActive = !encoderMenuActive;
-    menuLevel = MAIN_MENU;
-    editMode = false;
+    menuLevel     = MAIN_MENU;
+    editMode      = false;
     mainMenuIndex = 0;
-    subMenuIndex = 0;
-    displayMenu();
+    subMenuIndex  = 0;
+
+    if (encoderMenuActive) {
+      displayMenu();
+    } else {
+      // Виходимо з меню → очищаємо і одразу перемальовуємо обидва рядки
+      mainDisplay.clear();
+      tempFlag5  = 1;
+      tempFlag31 = 1;
+      dispOldLength  = 0;
+      dispOldLength3 = 0;
+    }
     return;
   }
+
+  // ── 1 клік поза меню — перемикання ТЕН ───────────────────────────────
+  if (!encoderMenuActive && enc.click()) {
+    tenEnabled = !tenEnabled;
+    if (!tenEnabled) {
+      tempInt2   = 0;
+      tempFlag33 = 0;
+    }
+    tempFlag31 = 1;
+    return;
+  }
+
   if (!encoderMenuActive) return;
 
   if (menuLevel == MAIN_MENU) {
     uint8_t count = 2;
     if (enc.right()) { mainMenuIndex = (mainMenuIndex + 1) % count; displayMenu(); }
     if (enc.left())  { mainMenuIndex = (mainMenuIndex - 1 + count) % count; displayMenu(); }
-    if (enc.click()) { menuLevel = SUB_MENU; editMode = false; subMenuIndex = 0; displayMenu(); }
+    if (enc.click()) {
+      menuLevel    = SUB_MENU;
+      editMode     = false;
+      subMenuIndex = 0;
+      displayMenu();
+    }
     return;
   }
 
@@ -480,7 +509,11 @@ void handleEncoderMenu() {
   if (!editMode) {
     if (enc.right()) { subMenuIndex = (subMenuIndex + 1) % sectionCount; displayMenu(); }
     if (enc.left())  { subMenuIndex = (subMenuIndex - 1 + sectionCount) % sectionCount; displayMenu(); }
-    if (enc.click()) { menuLevel = MAIN_MENU; editMode = false; displayMenu(); }
+    if (enc.click()) {
+      menuLevel = MAIN_MENU;
+      editMode  = false;
+      displayMenu();
+    }
     return;
   }
 
@@ -504,6 +537,7 @@ void handleEncoderMenu() {
         changed = true; break;
     }
   }
+
   if (enc.left()) {
     switch (item.valueType) {
       case TYPE_INT:
@@ -516,7 +550,9 @@ void handleEncoderMenu() {
         changed = true; break;
     }
   }
+
   if (changed) displayMenu();
+
   if (enc.hold()) {
     editMode = false;
     displayMenu();
@@ -697,11 +733,14 @@ void setup() {
   pinMode(VALVE_RELAY_DIRECT_PIN, OUTPUT);
   digitalWrite(VALVE_RELAY_DIRECT_PIN, HIGH);  // клапан закритий при старті
   pinMode(PERIPHERY_OUTPUT_PIN, OUTPUT);
-  digitalWrite(PERIPHERY_OUTPUT_PIN, 0);
+  // A2 ПЕРИФЕРІЯ: HIGH = реле не світиться = вода вимкнена
+  digitalWrite(PERIPHERY_OUTPUT_PIN, HIGH);
   pinMode(RAZGON_OUTPUT_PIN, OUTPUT);
-  digitalWrite(RAZGON_OUTPUT_PIN, 0);
+  // A1 РОЗГІН: HIGH = реле не світиться = розгін вимкнений
+  digitalWrite(RAZGON_OUTPUT_PIN, HIGH);
   pinMode(AVARIA_OUTPUT_PIN, OUTPUT);
-  digitalWrite(AVARIA_OUTPUT_PIN, 1);  // АВАРИЯ = 1 при старті (ТЕН вимкнений)
+  // A0 AVARIA/ТЕН: LOW = реле світиться = ТЕН відключений (tenEnabled=false при старті)
+  digitalWrite(AVARIA_OUTPUT_PIN, LOW);
 
   Wire.begin();
   delay(10);
@@ -923,12 +962,14 @@ void loop() {
   funcUB_185384122(&ubDataInstance4, ubDataUbi);
   if (ubDataInstance4.uboFlag && !(alarmSensorValue == 85)) {
     alarmTemp = ubDataInstance4.uboValue;
+    sensorsInitialized = true; // Датчики прочитані хоча б раз
   }
 
   atmPressure = bmpPressure / 133.3;
 
   // ─── Аварійні прапорці ─────────────────────────────────────────────────
-  alarmFlag2 = ((!digitalRead(RAIN_LEAK_INPUT_PIN)) || (alarmTemp > vaporSensorTriggerTemp));
+  alarmFlag2 = sensorsInitialized &&
+               ((!digitalRead(RAIN_LEAK_INPUT_PIN)) || (alarmTemp > vaporSensorTriggerTemp));
 
   // ─── Передача телеметрії (кожні 2 сек) — завжди, незалежно від tenEnabled
   if (columnSensorFlag) {
@@ -1144,7 +1185,7 @@ void loop() {
   }
   if (alarmFlag) alarmFlag = timer4Output;
 
-  if ((!alarmFlag2) && (!(columnTemp >= columnPeripheralSwitchTemp))) {
+  if ((!alarmFlag2) && (!(columnTemp >= columnPeripheralSwitchTemp)) && tenEnabled) {
     if (timer2Active) {
       if (isTimer(timer2PrevMillis, 20000)) timer2Output = 1;
     } else {
@@ -1177,10 +1218,13 @@ void loop() {
   tempFlag30 = (switchFlag10 && alarmFlag && timer8Output);
 
   // ─── Виходи ─────────────────────────────────────────────────────────────
-  digitalWrite(PERIPHERY_OUTPUT_PIN, (tempFlag30 ^ invertPeripheralOutput));
-  digitalWrite(RAZGON_OUTPUT_PIN, (tempFlag41 ^ invertRazgonOutput));
-  // AVARIA = 1 якщо ТЕН вимкнений АБО аварія
-  digitalWrite(AVARIA_OUTPUT_PIN, ((!tenEnabled || !alarmFlag) ^ invertAlarmOutput));
+  // A2 — ПЕРИФЕРІЯ: tempFlag30=true → LOW → реле світиться → вода тече
+  digitalWrite(PERIPHERY_OUTPUT_PIN, tempFlag30 ? LOW : HIGH);
+  // A1 — РОЗГІН: тільки якщо tenEnabled=true і tempFlag41=true → LOW → розгін активний
+  digitalWrite(RAZGON_OUTPUT_PIN, (tempFlag41 && tenEnabled) ? LOW : HIGH);
+  // A0 — AVARIA/ТЕН: tenEnabled=true + alarmFlag=1 → HIGH → реле НЕ світиться → ТЕН працює
+  //                   tenEnabled=false або аварія     → LOW  → реле світиться → ТЕН відключений
+  digitalWrite(AVARIA_OUTPUT_PIN, (tenEnabled && alarmFlag) ? HIGH : LOW);
 
   // ─── Дисплей: рядок 1 ──────────────────────────────────────────────────
   if (tempFlag5 == 1) {
